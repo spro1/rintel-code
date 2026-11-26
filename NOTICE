@@ -1,0 +1,8 @@
+rintel
+Copyright 2026 The rintel authors
+
+This product bundles the TypeScript compiler, version 5.9.3, unmodified
+(cmd/rintel/adapter/typescript-5.9.3.tar.gz).
+Copyright (c) Microsoft Corporation. Licensed under the Apache License, Version 2.0.
+Its license and third-party notices are inside the archive:
+typescript/LICENSE.txt and typescript/ThirdPartyNoticeText.txt.

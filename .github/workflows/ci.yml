@@ -1,0 +1,28 @@
+name: ci
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-java@v4 # the Java adapter tests compile and run it
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-node@v4 # the TypeScript adapter runs on Node with the bundled compiler
+        with:
+          node-version: "20"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: go vet ./...
+      - run: go test ./...
+      - name: govulncheck # dependency policy: no known vulnerabilities
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...

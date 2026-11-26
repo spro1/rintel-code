@@ -1,0 +1,952 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- self-contained by design: no network access, no third-party code -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+<title>rintel report</title>
+<style>
+:root { --bg:#fff; --chrome:#f3f4f6; --alt:#f8f9fb; --ink:#1b1f24; --muted:#4f5861; --line:#c3c7cd; --soft:#dde0e4; --link:#0f47ad; --sel:#dbe7ff; --selink:#1b1f24; --ok:#2f7a4c; --track:#d3d7dc; --warn:#7a4200; --warnbg:#fff0cc; --bad:#b3261e; --node:#fff; --edge:#6b7480;
+  --sans:-apple-system,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif; --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme=light]) { --bg:#15171a; --chrome:#1e2125; --alt:#1a1c20; --ink:#eceef1; --muted:#aab2bc; --line:#3d434a; --soft:#2c3137; --link:#93baff; --sel:#27406e; --selink:#fff; --ok:#63b583; --track:#3d434a; --warn:#f3bd66; --warnbg:#3b2f14; --bad:#ff8f85; --node:#1e2125; --edge:#98a1ac; } }
+:root[data-theme=dark] { --bg:#15171a; --chrome:#1e2125; --alt:#1a1c20; --ink:#eceef1; --muted:#aab2bc; --line:#3d434a; --soft:#2c3137; --link:#93baff; --sel:#27406e; --selink:#fff; --ok:#63b583; --track:#3d434a; --warn:#f3bd66; --warnbg:#3b2f14; --bad:#ff8f85; --node:#1e2125; --edge:#98a1ac; }
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; display: flex; flex-direction: column; background: var(--bg); color: var(--ink); font: 14px/1.55 var(--sans); }
+a, .lk { color: var(--link); } .lk { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; text-align: left; overflow-wrap: anywhere; }
+.lk:hover, a:hover { text-decoration: underline; }
+:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+.mono { font-family: var(--mono); font-size: 13px; } .sig { color: var(--muted); font-weight: 400; } .muted { color: var(--muted); } .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 8px 14px; background: var(--chrome); border-bottom: 1px solid var(--line); }
+header nav { display: flex; flex-wrap: wrap; gap: 2px; margin-left: 8px; }
+header nav button, .tab { padding: 6px 12px; border: 1px solid transparent; border-radius: 4px; background: none; color: var(--ink); font: inherit; cursor: pointer; }
+header nav button[aria-selected=true] { background: var(--bg); border-color: var(--line); font-weight: 600; box-shadow: inset 0 -2px 0 var(--link); }
+input[type=search] { padding: 6px 9px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: inherit; }
+.btn { padding: 6px 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); color: var(--ink); font: inherit; cursor: pointer; }
+footer { display: flex; flex-wrap: wrap; gap: 2px 18px; padding: 5px 14px; background: var(--chrome); border-top: 1px solid var(--line); font-size: 12.5px; color: var(--muted); }
+main { flex: 1; min-height: 0; overflow: auto; }
+.page { max-width: 1200px; margin: 0 auto; padding: 22px 28px 56px; }
+h1 { margin: 0 0 4px; font-size: 23px; font-weight: 650; } h2 { margin: 36px 0 4px; font-size: 17px; font-weight: 650; } h2 + p, h1 + p { margin: 0 0 12px; color: var(--muted); font-size: 13.5px; max-width: 78ch; }
+table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+th, td { padding: 7px 11px; border: 1px solid var(--soft); text-align: left; vertical-align: top; }
+td.num, th.num { width: 1%; }
+tbody tr:hover { background: var(--sel) !important; }
+.over { color: var(--bad); font-weight: 650; }
+th .ab { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+thead th, tfoot td { background: var(--chrome); border-color: var(--line); font-weight: 600; white-space: nowrap; }
+tbody tr:nth-child(even) { background: var(--alt); }
+.scroll { overflow-x: auto; }
+.bar { height: 9px; min-width: 90px; background: var(--track); } .bar i { display: block; height: 100%; background: var(--ok); }
+.guess { background: var(--warnbg); color: var(--warn); padding: 0 4px; white-space: nowrap; }
+.tag { color: var(--muted); font-size: 12px; margin-left: 8px; white-space: nowrap; }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 0 28px; align-items: start; }
+.empty { color: var(--muted); padding: 6px 0; }
+.note { margin: 8px 0 0; font-size: 13px; color: var(--muted); max-width: 90ch; }
+/* graph */
+.graph { border: 1px solid var(--line); overflow: auto; background: var(--alt); }
+.graph svg { display: block; font: 13px var(--mono); }
+.graph .n rect { fill: var(--node); stroke: var(--line); } .graph .n text { fill: var(--ink); } .graph .n .s { fill: var(--muted); font-size: 11.5px; }
+.graph .n { cursor: pointer; } .graph .n.sel rect { stroke: var(--link); stroke-width: 2; fill: var(--sel); } .graph .n.center rect { fill: var(--ink); stroke: var(--ink); } .graph .n.center text { fill: var(--bg); } .graph .n.center .s { fill: var(--bg); }
+.graph .e path.v { fill: none; stroke: var(--edge); stroke-opacity: .7; } .graph .e.cyc path.v { stroke: var(--bad); stroke-dasharray: 5 3; } .graph .e.sel path.v { stroke: var(--link); }
+.graph .e path.h { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.graph .e text { fill: var(--ink); font-size: 11.5px; paint-order: stroke; stroke: var(--alt); stroke-width: 3; }
+.graph .dim { opacity: .18; }
+.graph .ah { fill: var(--edge); } .graph .ahc { fill: var(--bad); } .graph .ahs { fill: var(--link); }
+.dsm td, .dsm th { padding: 5px 7px; text-align: right; min-width: 34px; width: auto; } .dsm th.l { text-align: left; white-space: nowrap; }
+.dsm td.d { background: var(--track); } .dsm td.up { background: var(--warnbg); color: var(--warn); font-weight: 600; } .dsm td.c { cursor: pointer; } .dsm td.sel { outline: 2px solid var(--link); outline-offset: -2px; }
+.tm rect { stroke: var(--bg); stroke-width: 1; cursor: pointer; } .tm rect.p { fill: none; stroke: var(--ink); stroke-width: 1; pointer-events: none; }
+.tm text { font: 12px var(--mono); pointer-events: none; } .tm text.p { font: 650 12px var(--sans); fill: var(--ink); }
+.c1 { fill: #f3e6cb; } .c2 { fill: #e6b469; } .c3 { fill: #d07a2a; } .c4 { fill: #9c3d10; } .t12 { fill: #2a2110; } .t34 { fill: #fff; }
+.sw { display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin: 0 4px 0 12px; }
+th.s { cursor: pointer; user-select: none; } th.s:hover { text-decoration: underline; }
+.kv { display: flex; flex-wrap: wrap; gap: 2px 18px; font-size: 13px; color: var(--muted); margin-top: 4px; } .kv b { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.src { font: 13px/1.6 var(--mono); padding: 6px 0; overflow-x: auto; } .src div { display: grid; grid-template-columns: 52px minmax(0, 1fr); gap: 0 10px; white-space: pre; padding-right: 12px; }
+.src div span:first-child { text-align: right; color: var(--muted); user-select: none; } .src div.hit { background: var(--sel); }
+.snip { display: block; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+details { margin-top: 10px; font-size: 13px; color: var(--muted); } details dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 6px 0 0; } details dt { color: var(--ink); font-weight: 600; } details dd { margin: 0; }
+/* explorer (IDE panes) */
+.ide { height: 100%; display: grid; grid-template-columns: 260px 380px minmax(0, 1fr); }
+.ide > * { min-height: 0; overflow: auto; border-right: 1px solid var(--line); } .ide > *:last-child { border-right: 0; }
+@media (max-width: 900px) { .ide { grid-template-columns: 1fr; height: auto; } .ide > * { border-right: 0; border-bottom: 1px solid var(--line); max-height: 50vh; } }
+.row { display: flex; gap: 7px; width: 100%; padding: 5px 14px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; align-items: baseline; }
+.row:hover { background: var(--chrome); } .row[aria-current=true] { background: var(--sel); color: var(--selink); }
+.row .k { width: 14px; flex: none; font-size: 12px; color: var(--muted); } .row .c { margin-left: auto; color: var(--muted); font-variant-numeric: tabular-nums; }
+.hd { padding: 6px 14px 4px; font-size: 12px; color: var(--muted); }
+.mrow { display: grid; grid-template-columns: minmax(0, 1fr) 44px 48px; gap: 0 10px; }
+.sub { padding: 10px 14px; border-bottom: 1px solid var(--soft); }
+.tabs { display: flex; flex-wrap: wrap; gap: 2px; padding: 0 12px; border-bottom: 1px solid var(--line); }
+.tabs .tab { border-radius: 4px 4px 0 0; margin-bottom: -1px; color: var(--muted); } .tabs .tab[aria-selected=true] { border-color: var(--line); border-bottom-color: var(--bg); background: var(--bg); color: var(--ink); font-weight: 600; }
+.tree { font-family: var(--mono); font-size: 13px; padding: 6px 0; }
+.tree .g { display: flex; gap: 6px; padding: 5px 14px; align-items: baseline; } .tree .g.top { font: 650 14px var(--sans); padding-top: 10px; }
+.tree .u { display: grid; grid-template-columns: 14px 44px minmax(0, 1fr); gap: 0 10px; padding: 4px 14px; align-items: baseline; } .tree .u:hover { background: var(--chrome); }
+.tw { width: 14px; padding: 0; border: 0; background: none; color: var(--muted); font: inherit; cursor: pointer; }
+</style>
+</head>
+<body>
+<header>
+  <strong>rintel</strong><span id="repo" class="muted"></span><span id="commit" class="mono muted"></span>
+  <nav id="nav" role="tablist"></nav>
+  <input id="find" type="search" style="margin-left:auto;width:240px">
+  <button class="btn" id="theme"></button>
+  <button class="btn" id="lang"></button>
+</header>
+<main id="main"></main>
+<footer id="foot"></footer>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+"use strict";
+const D = JSON.parse(document.getElementById("data").textContent);
+let lang = D.lang === "ko" ? "ko" : "en";
+let goOnly = false; // set once the symbols are loaded: Go has types and files, not classes
+const L = (en, ko) => {
+  const t = lang === "ko" ? ko : en;
+  if (!goOnly || typeof t !== "string") return t;
+  return t.replace(/클래스/g, "타입").replace(/\bsubclass(es)?\b/g, "subtype$1").replace(/\bSubclass(es)?\b/g, "Subtype$1").replace(/\bclass(es)?\b/g, (m, p) => "type" + (p ? "s" : "")).replace(/\bClass(es)?\b/g, (m, p) => "Type" + (p ? "s" : ""));
+};
+const fmt = n => Number(n).toLocaleString("en-US");
+
+// ---------- DOM helpers. Repository-derived text only ever goes through textContent. ----------
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v === false || v == null) continue;
+    if (k === "class") n.className = v; else if (k === "onclick") n.addEventListener("click", v); else n.setAttribute(k, v);
+  }
+  for (const k of kids.flat(3)) if (k != null && k !== false && k !== "") n.append(k);
+  return n;
+}
+function sv(tag, attrs, ...kids) {
+  const n = document.createElementNS("http://www.w3.org/2000/svg", tag);
+  for (const [k, v] of Object.entries(attrs || {})) if (v != null && v !== false) n.setAttribute(k, v);
+  for (const k of kids.flat()) if (k != null && k !== false) n.append(k);
+  return n;
+}
+function table(heads, rows, foot) {
+  return el("div", { class: "scroll" }, el("table", {},
+    el("thead", {}, el("tr", {}, heads.map(h => el("th", { class: h.num ? "num" : null, style: h.w ? `width:${h.w}` : null }, h.t ?? h)))),
+    el("tbody", {}, rows.map(r => el("tr", {}, r.map((c, i) => el("td", { class: heads[i] && heads[i].num ? "num" : null }, c))))),
+    foot && el("tfoot", {}, el("tr", {}, foot.map((c, i) => el("td", { class: heads[i] && heads[i].num ? "num" : null }, c))))));
+}
+const mono = (...k) => el("span", { class: "mono" }, k);
+const muted = (...k) => el("span", { class: "muted" }, k);
+
+// ---------- model ----------
+// same rule as the core: test directories, Go test files, JS/TS spec files, pytest files
+const TEST_RE = /(^|\/)(src\/)?tests?\/|(^|\/)__tests__\/|(^|\/)e2e\/|_test\.go$|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^\/]*\.py$|_test\.py$|(^|\/)conftest\.py$/;
+const S = D.syms.map(([id, type, parent, file, line, ext, synth, kind, role, ann], i) =>
+  ({ i, id, type, parent, file, line, ext: !!ext, synth, kind, role, ann: !!ann, out: [], in: [], kids: [], unres: 0, testRefs: 0 }));
+const byId = new Map(S.map(s => [s.id, s]));
+for (const s of S) {
+  if (s.parent >= 0) S[s.parent].kids.push(s);
+  s.test = s.file >= 0 && TEST_RE.test(D.files[s.file]);
+}
+for (const s of S) { // top-level class that owns the symbol
+  let c = null;
+  for (let x = s; x; x = x.parent >= 0 ? S[x.parent] : null) if (x.type === "class") c = x;
+  s.cls = s.ext ? null : c;
+}
+const E = D.edges.map(([s, d, rel, ev, rule, file, line]) => ({ s, d, rel, ev, rule: rule >= 0 ? D.rules[rule] : "", file, line }));
+for (const e of E) { S[e.s].out.push(e); S[e.d].in.push(e); }
+for (const [s, , reason] of D.unresolved) if (reason !== "missing-type") S[s].unres++;
+for (const [s, , reason] of D.unresolved) if (reason === "missing-type" && S[s].cls) S[s].cls.blind = true; // a supertype may be unknown: "overrides nothing" is not provable there
+for (const e of E) { const c = S[e.d].cls; if (c && !c.test && S[e.s].test) c.testRefs++; }
+
+const classes = S.filter(s => !s.ext && s.type === "class" && s.cls === s);
+const byFile = id => id.startsWith("ts:") || id.startsWith("py:"); // languages whose IDs name the file: the package is its directory
+const pkgOf = c => {
+  let q = c.id.slice(c.id.indexOf(":") + 1);
+  const i = q.lastIndexOf(".");
+  if (i < 0) return "";
+  q = q.slice(0, i);
+  if (!byFile(c.id)) return q;
+  const j = q.lastIndexOf("/");
+  return j < 0 ? "." : q.slice(0, j);
+};
+for (const c of classes) {
+  c.pkg = pkgOf(c);
+  if (!c.role && c.kind === "interface" && c.out.some(e => e.rel === "extends" && /Repository$/.test(S[e.d].id))) c.role = "repository";
+}
+const pkgNames = [...new Set(classes.map(c => c.pkg))].sort();
+goOnly = classes.length > 0 && !classes.some(c => c.id.startsWith("java:")); // no Java: speak of types, not classes
+const hasRoles = classes.some(c => c.role);
+const byFilePkgs = classes.some(c => byFile(c.id)); // directory packages are shown whole: "src/api", not "api"
+const base = (() => { // longest common prefix ending at a package boundary ("." in Java, "/" in Go), dropped from labels
+  if (pkgNames.length < 2 || byFilePkgs) return "";
+  let p = pkgNames[0];
+  for (const n of pkgNames) { let i = 0; while (i < p.length && i < n.length && p[i] === n[i]) i++; p = p.slice(0, i); }
+  if (pkgNames.includes(p)) return p; // one package is the parent of all the others
+  return p.slice(0, Math.max(p.lastIndexOf("."), p.lastIndexOf("/")) + 1).replace(/[./]$/, "");
+})();
+const plabel = p => { if (!p) return "(default)"; if (p === ".") return L("(root)", "(루트)"); if (p === base || !base) return byFilePkgs ? p : p.split(/[./]/).pop(); return p.slice(base.length + 1); };
+
+function short(id) { // same shortening as the CLI
+  if (byFile(id)) return id.slice(id.lastIndexOf("/") + 1).replace(/^(ts|py):/, "").replace("#", "."); // client.UserService.getUser, models.py
+  if (id.startsWith("go:")) { // Go: package name + declaration (web.Server.handle); file containers read as web/server.go
+    let q = id.slice(3);
+    const i = q.lastIndexOf("/");
+    q = q.slice(i + 1);
+    const dot = q.indexOf(".");
+    let pkg = dot < 0 ? q : q.slice(0, dot), name = dot < 0 ? "" : q.slice(dot + 1);
+    if (i < 0) pkg = "";
+    if (name.endsWith("_go")) return (pkg ? pkg + "/" : "") + name.slice(0, -3) + ".go";
+    name = name.replace("_go#", ".go:").replace("#", ".");
+    return pkg ? pkg + "." + name : name;
+  }
+  let s = id.slice(id.indexOf(":") + 1), sig = "";
+  const p = s.indexOf("(");
+  if (p >= 0) { sig = s.slice(p); s = s.slice(0, p); }
+  const parts = s.replace("#", ".").split(".");
+  let i = 0;
+  while (i < parts.length - 1 && parts[i] && /^[a-z_]/.test(parts[i])) i++;
+  if (parts[parts.length - 1] === "<init>" && parts.length - i >= 2) return "new " + parts.slice(i, -1).join(".") + sig;
+  return parts.slice(i).join(".") + sig;
+}
+const member = s => { // the name inside its class or file
+  if (!s.id.startsWith("java:")) return s.id.slice(Math.max(s.id.lastIndexOf("#"), s.id.lastIndexOf(".")) + 1);
+  const t = short(s.id), c = s.cls ? short(s.cls.id) : "";
+  return s.type === "constructor" ? t : c && t.startsWith(c + ".") ? t.slice(c.length + 1) : t;
+};
+// inside its package's group the qualifier would only repeat the heading
+const inPkg = c => c.id.startsWith("java:") ? short(c.id) : c.kind === "file" ? short(c.id).split("/").pop() : short(c.id).split(".").pop();
+const loc = (file, line) => file >= 0 ? `${D.files[file]}:${line}` : L("(library)", "(라이브러리)");
+const fname = f => f >= 0 ? D.files[f].replace(/^.*?(src\/(main|test)\/[a-z]+\/)/, "").replace(base.replace(/\./g, "/") + "/", "") : "";
+const lib = id => { // library group of an external symbol
+  if (byFile(id)) { // ts:pkg/@types/node.readFile, ts:lib/std.Array#map, py:lib/fastapi.FastAPI, py:std/os.path.join
+    const pth = id.slice(3).split("#")[0];
+    if (/^(lib\/std|std\/|lib\/unknown)/.test(pth)) return "std";
+    const rest = pth.replace(/^(pkg|lib)\//, "");
+    return id.startsWith("py:") ? rest.split(".")[0] : rest.slice(0, rest.lastIndexOf(".") < 0 ? undefined : rest.lastIndexOf("."));
+  }
+  if (id.startsWith("go:")) { // module-ish prefix of the import path; the standard library has no dot in its first element
+    const pth = id.slice(3).split("#")[0], pk = pth.slice(0, pth.lastIndexOf(".")).split("/");
+    return pk[0].includes(".") ? pk.slice(0, 3).join("/") : "std";
+  }
+  const q = id.slice(id.indexOf(":") + 1).split("#")[0].split(".");
+  let n = 0; while (n < q.length && /^[a-z_]/.test(q[n])) n++;
+  const pk = q.slice(0, n);
+  return pk.slice(0, /^(org|com|io|net)$/.test(pk[0]) ? 3 : 2).join(".") || "(default)";
+};
+
+const M = D.metrics, mClass = new Map(M.classes.map(c => [c.id, c])), mMethod = new Map(M.methods.map(m => [m.id, m]));
+const srcCache = new Map();
+const srcLines = f => { if (!D.sources || D.sources[f] == null) return null; if (!srcCache.has(f)) srcCache.set(f, D.sources[f].split("\n")); return srcCache.get(f); };
+const snip = (f, line) => { const ls = srcLines(f); const t = ls && ls[line - 1] ? ls[line - 1].trim() : ""; return t && el("span", { class: "snip mono" }, t.length > 90 ? t.slice(0, 90) + "…" : t); };
+const TH = (t => ({ cc: t.cc, loc: t.method_loc, nest: t.nesting, params: t.params, wmc: t.wmc, cloc: t.class_loc, cbo: t.cbo }))(D.thresholds); // the limits `rintel check` uses, including .ri/config.json
+
+// ---------- dependency analysis (recomputed when the "include tests" switch flips) ----------
+let withTests = false;
+const cache = {};
+function deps() {
+  if (cache[withTests]) return cache[withTests];
+  const cls = classes.filter(c => withTests || !c.test);
+  const cd = new Map();
+  for (const e of E) {
+    if (e.rel === "overrides") continue;
+    const a = S[e.s].cls, b = S[e.d].cls;
+    if (!a || !b || a === b || (!withTests && (a.test || b.test))) continue;
+    const k = a.i + ">" + b.i;
+    let x = cd.get(k);
+    if (!x) cd.set(k, x = { a, b, w: 0, kinds: {} });
+    x.w++; x.kinds[e.rel] = (x.kinds[e.rel] || 0) + 1;
+  }
+  const P = new Map(pkgNames.map(n => [n, { name: n, classes: [], ca: new Set(), ce: new Set() }]));
+  for (const c of cls) P.get(c.pkg).classes.push(c);
+  for (const [n, p] of [...P]) if (!p.classes.length) P.delete(n);
+  const fin = new Map(cls.map(c => [c, new Set()])), fout = new Map(cls.map(c => [c, new Set()]));
+  const pd = new Map();
+  for (const x of cd.values()) {
+    fin.get(x.b).add(x.a); fout.get(x.a).add(x.b);
+    if (x.a.pkg === x.b.pkg) continue;
+    P.get(x.b.pkg).ca.add(x.a); P.get(x.a.pkg).ce.add(x.b);
+    const k = x.a.pkg + ">" + x.b.pkg;
+    let y = pd.get(k);
+    if (!y) pd.set(k, y = { s: x.a.pkg, t: x.b.pkg, w: 0, pairs: [], key: k });
+    y.w += x.w; y.pairs.push(x);
+  }
+  const pscc = scc([...P.keys()], [...pd.values()].map(e => [e.s, e.t]));
+  const cscc = scc(cls, [...cd.values()].map(x => [x.a, x.b]));
+  for (const e of pd.values()) e.cyc = pscc.of.get(e.s) === pscc.of.get(e.t);
+  return cache[withTests] = { cls, cd, P, pd, fin, fout, pscc, cscc };
+}
+function scc(nodes, edges) { // Tarjan; returns component id per node and the components with more than one member
+  const adj = new Map(nodes.map(n => [n, []]));
+  for (const [a, b] of edges) if (adj.has(a) && adj.has(b)) adj.get(a).push(b);
+  const idx = new Map(), low = new Map(), on = new Set(), st = [], of = new Map(), comps = [];
+  let c = 0;
+  const visit = v => {
+    idx.set(v, c); low.set(v, c++); st.push(v); on.add(v);
+    for (const w of adj.get(v)) {
+      if (!idx.has(w)) { visit(w); low.set(v, Math.min(low.get(v), low.get(w))); }
+      else if (on.has(w)) low.set(v, Math.min(low.get(v), idx.get(w)));
+    }
+    if (low.get(v) === idx.get(v)) {
+      const comp = []; let w;
+      do { w = st.pop(); on.delete(w); of.set(w, comps.length); comp.push(w); } while (w !== v);
+      comps.push(comp);
+    }
+  };
+  for (const n of nodes) if (!idx.has(n)) visit(n);
+  return { of, cycles: comps.filter(x => x.length > 1) };
+}
+
+// ---------- layered graph drawing (no library: cycle removal, longest-path layers, barycenter ordering) ----------
+function layout(nodes, edges, fixed) {
+  const ids = nodes.map(n => n.id), layer = new Map();
+  if (fixed) for (const n of nodes) layer.set(n.id, fixed(n));
+  else {
+    const out = new Map(ids.map(i => [i, []])), indeg = new Map(ids.map(i => [i, 0]));
+    for (const e of edges) { out.get(e.s).push(e); indeg.set(e.t, indeg.get(e.t) + 1); }
+    const state = new Map(), back = new Set();
+    const dfs = u => { state.set(u, 1); for (const e of out.get(u)) { const s = state.get(e.t); if (s === 1) back.add(e); else if (!s) dfs(e.t); } state.set(u, 2); };
+    for (const i of [...ids].sort((a, b) => indeg.get(a) - indeg.get(b) || out.get(b).length - out.get(a).length)) if (!state.has(i)) dfs(i);
+    const dag = edges.filter(e => !back.has(e)), inc = new Map(ids.map(i => [i, []]));
+    for (const e of dag) inc.get(e.t).push(e.s);
+    const depth = i => { if (layer.has(i)) return layer.get(i); layer.set(i, 0); const d = Math.max(-1, ...inc.get(i).map(depth)) + 1; layer.set(i, d); return d; };
+    ids.forEach(depth);
+  }
+  // An edge that skips layers gets a waypoint in each layer it crosses, so it is routed around nodes instead of behind them.
+  const all = [...nodes], nb = new Map(ids.map(i => [i, []]));
+  const link = (a, b) => { nb.get(a).push(b); nb.get(b).push(a); };
+  const route = new Map();
+  for (const e of edges) {
+    const ls = layer.get(e.s), lt = layer.get(e.t), way = [];
+    for (let l = ls + 1; l < lt; l++) { const id = `\u0001${e.s}>${e.t}@${l}`; all.push({ id, dummy: true }); layer.set(id, l); nb.set(id, []); way.push(id); }
+    route.set(e, way);
+    const chain = [e.s, ...way, e.t];
+    for (let i = 1; i < chain.length; i++) link(chain[i - 1], chain[i]);
+  }
+  const cols = [];
+  for (const n of all) (cols[layer.get(n.id)] ||= []).push(n);
+  for (let i = 0; i < cols.length; i++) cols[i] ||= [];
+  const pos = new Map();
+  cols.forEach(c => c.forEach((n, i) => pos.set(n.id, i)));
+  for (let sweep = 0; sweep < 8; sweep++) {
+    for (const c of sweep % 2 ? [...cols].reverse() : cols) {
+      const bc = n => { const v = nb.get(n.id).filter(x => layer.get(x) !== layer.get(n.id)).map(x => pos.get(x) / Math.max(1, cols[layer.get(x)].length)); return v.length ? v.reduce((a, b) => a + b, 0) / v.length : pos.get(n.id) / Math.max(1, c.length); };
+      const keyed = c.map(n => [bc(n), n]).sort((a, b) => a[0] - b[0]);
+      keyed.forEach(([, n], i) => { c[i] = n; pos.set(n.id, i); });
+    }
+  }
+  return { cols, route };
+}
+function graph(nodes, edges, o = {}) {
+  const { cols, route } = layout(nodes, edges, o.fixed), H = 36, DH = 4, VG = 12, HG = 110, PAD = 18;
+  const wOf = n => n.dummy ? 0 : Math.min(330, Math.max(104, 8 * Math.max(n.label.length, (n.sub || "").length * 0.9) + 24));
+  const hOf = n => n.dummy ? DH : H, gap = n => n.dummy ? 3 : VG, colH = c => c.reduce((a, n) => a + hOf(n) + gap(n), 0);
+  const box = new Map(), tall = Math.max(H, ...cols.map(colH)), loops = edges.some(e => { const a = cols.findIndex(c => c.some(n => n.id === e.s)), b = cols.findIndex(c => c.some(n => n.id === e.t)); return b <= a; });
+  let x = PAD;
+  for (const c of cols) {
+    const w = Math.max(c.some(n => !n.dummy) ? 96 : 24, ...c.map(wOf));
+    let y = PAD + (tall - colH(c)) / 2;
+    for (const n of c) { box.set(n.id, { x, y, w, h: hOf(n) }); y += hOf(n) + gap(n); }
+    x += w + HG;
+  }
+  const width = x - HG + PAD, height = tall + PAD * 2 + (loops ? 44 : 0);
+  const touching = id => o.sel && (o.sel === id || edges.some(e => (e.s === o.sel && e.t === id) || (e.t === o.sel && e.s === id)));
+  const pre = o.id || "g";
+  const g = sv("svg", { width, height, viewBox: `0 0 ${width} ${height}`, role: "img", "aria-label": o.label || "dependency graph" },
+    sv("defs", {}, ["ah", "ahc", "ahs"].map(c => sv("marker", { id: pre + c, viewBox: "0 0 10 10", refX: 9, refY: 5, markerWidth: 9, markerHeight: 9, markerUnits: "userSpaceOnUse", orient: "auto" }, sv("path", { d: "M0,0L10,5L0,10z", class: c })))));
+  for (const e of [...edges].sort((a, b) => a.w - b.w)) {
+    const a = box.get(e.s), b = box.get(e.t);
+    if (!a || !b) continue;
+    let d, lx, ly;
+    if (b.x > a.x) { // left to right, through its waypoints
+      const pts = [[a.x + a.w, a.y + H / 2]];
+      for (const id of route.get(e)) { const w = box.get(id); pts.push([w.x, w.y + DH / 2], [w.x + w.w, w.y + DH / 2]); }
+      pts.push([b.x, b.y + H / 2]);
+      d = `M${pts[0]}`;
+      for (let i = 1; i < pts.length; i++) {
+        const [px, py] = pts[i - 1], [qx, qy] = pts[i];
+        d += i % 2 ? `C${px + (qx - px) / 2},${py} ${qx - (qx - px) / 2},${qy} ${qx},${qy}` : `L${qx},${qy}`;
+      }
+      lx = pts[0][0] + (pts[1][0] - pts[0][0]) * 0.3; ly = pts[0][1] + (pts[1][1] - pts[0][1]) * 0.3 - 3;
+    } else { // against the flow: loop underneath
+      const x1 = a.x + a.w / 2, y1 = a.y + H, x2 = b.x + b.w / 2, y2 = b.y + H, low = tall + PAD + 34;
+      d = `M${x1},${y1}C${x1},${low} ${x2},${low} ${x2},${y2}`;
+      lx = (x1 + x2) / 2; ly = (y1 + y2) / 8 + low * 0.75;
+    }
+    const sel = o.selEdge != null && o.selEdge === e.key, dim = (o.sel && e.s !== o.sel && e.t !== o.sel) || (o.selEdge && !sel);
+    const grp = sv("g", { class: "e" + (e.cyc ? " cyc" : "") + (sel ? " sel" : "") + (dim ? " dim" : "") },
+      sv("path", { d, class: "v", "stroke-width": Math.min(3.5, 1 + Math.log2(e.w) * 0.4), "marker-end": `url(#${pre + (sel ? "ahs" : e.cyc ? "ahc" : "ah")})` }),
+      (edges.length <= 24 || sel || (o.sel && (e.s === o.sel || e.t === o.sel))) && sv("text", { x: lx, y: ly, "text-anchor": "middle" }, String(e.w)));
+    if (o.onEdge) { const hit = sv("path", { d, class: "h", tabindex: 0, role: "button", "aria-label": `${e.s} → ${e.t}: ${e.w}` }); hit.addEventListener("click", () => o.onEdge(e)); hit.addEventListener("keydown", k => k.key === "Enter" && o.onEdge(e)); grp.append(hit); }
+    g.append(grp);
+  }
+  for (const n of nodes) {
+    const b = box.get(n.id);
+    const grp = sv("g", { class: "n" + (o.sel === n.id ? " sel" : "") + (n.center ? " center" : "") + (o.sel && !touching(n.id) ? " dim" : ""), tabindex: 0, role: "button", transform: `translate(${b.x},${b.y})` },
+      sv("rect", { width: b.w, height: H, rx: 3 }),
+      sv("text", { x: 10, y: n.sub ? 15 : 23 }, n.label), n.sub && sv("text", { x: 10, y: 29, class: "s" }, n.sub));
+    if (o.onNode) { grp.addEventListener("click", () => o.onNode(n)); grp.addEventListener("keydown", k => k.key === "Enter" && o.onNode(n)); }
+    g.append(grp);
+  }
+  return el("div", { class: "graph" }, g);
+}
+
+// ---------- shared pieces ----------
+const parts = text => { const i = text.indexOf("("); return i < 0 ? [text] : [text.slice(0, i), el("span", { class: "sig" }, text.slice(i).replace(/,/g, ",\u200b"))]; };
+const symBtn = (s, text) => el("button", { class: "lk mono", title: s.id.slice(s.id.indexOf(":") + 1), onclick: () => go("code/" + encodeURIComponent(s.id)) }, parts(text || short(s.id)));
+const pkgBtn = p => el("button", { class: "lk", onclick: () => { sel.pkg = p; sel.edge = null; go("deps"); } }, plabel(p));
+const kinds = k => Object.keys(k).sort().map(n => `${n} ${k[n]}`).join(", ");
+const guess = e => e.ev === "heuristic" && el("span", { class: "guess", title: e.rule }, `${L("inferred", "추정")}: ${e.rule}`);
+const bar = (a, b) => el("div", { class: "bar", role: "img", "aria-label": b ? `${(a / b * 100).toFixed(1)}%` : "-" }, el("i", { style: `width:${b ? a / b * 100 : 0}%` }));
+const pct = (a, b) => b ? (a / b * 100).toFixed(1) + "%" : "–";
+const ratio = (a, b) => el("div", { style: "display:flex;align-items:center;gap:12px" }, el("div", { style: "flex:0 0 120px" }, bar(a, b)), el("span", { style: "white-space:nowrap" }, el("b", {}, pct(a, b)), " ", muted(`${fmt(a)} / ${fmt(b)}`)));
+const sel = { pkg: null, edge: null, tab: "in", open: new Set(), openPk: new Set(), reason: "" };
+const roles = ["controller", "service", "repository", "entity"];
+
+function pkgStats() { // resolved/unresolved calls per package, split main/test
+  const rows = new Map();
+  const get = k => rows.get(k) || rows.set(k, { files: new Set(), classes: 0, methods: 0, calls: 0, unres: 0, eps: 0 }).get(k);
+  const key = s => s.test ? "\u0000test" : s.cls ? s.cls.pkg : null;
+  for (const s of S) {
+    if (s.ext || !s.cls) continue;
+    const r = get(key(s));
+    if (s.file >= 0) r.files.add(s.file);
+    if (s.type === "class") r.classes++; else if (s.type !== "field") r.methods++;
+    r.unres += s.unres;
+    for (const e of s.out) if (e.rel === "calls" && e.ev !== "heuristic" && !e.rule) r.calls++;
+  }
+  for (const e of D.endpoints) { const h = byId.get(e.handler); if (h && h.cls) get(key(h)).eps++; }
+  return rows;
+}
+
+// ---------- 1. overview ----------
+function overview() {
+  const o = D.overview, d = deps(), st = pkgStats(), tot = { files: 0, classes: 0, methods: 0, calls: 0, unres: 0, eps: 0 };
+  const row = (k, name) => { const r = st.get(k); if (!r) return null; tot.files += r.files.size; for (const f of ["classes", "methods", "calls", "unres", "eps"]) tot[f] += r[f];
+    return [name, fmt(r.classes), fmt(r.methods), ratio(r.calls, r.calls + r.unres), r.unres ? el("button", { class: "lk", onclick: () => go("unresolved") }, fmt(r.unres)) : "0", fmt(r.eps)]; };
+  const rows = [...pkgNames.map(p => row(p, pkgBtn(p))), row("\u0000test", L("tests", "테스트"))].filter(Boolean);
+  const hot = d.cls.map(c => [c, d.fin.get(c).size]).filter(x => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const libs = libraries().slice(0, 8);
+  return el("div", { class: "page" },
+    el("h1", {}, D.repo),
+    el("p", {}, `${o.scan.commit ? o.scan.commit.slice(0, 7) : L("no git", "git 없음")} · ${L("scan", "스캔")} #${o.scan.id} · ${o.scan.scanned_at.replace("T", " ").replace("Z", " UTC")}`),
+    table([L("Package", "패키지"), { t: L("Classes", "클래스"), num: 1 }, { t: L("Methods", "메서드"), num: 1 }, L("Calls resolved", "해석된 호출"), { t: L("Unresolved", "미해석"), num: 1 }, { t: "API", num: 1 }], rows,
+      [L("Total", "합계"), fmt(tot.classes), fmt(tot.methods), ratio(tot.calls, tot.calls + tot.unres), fmt(tot.unres), fmt(tot.eps)]),
+    el("p", { class: "note" }, L(`${fmt(E.length)} relations, ${fmt(o.edges.heuristic || 0)} of them inferred.`, `관계 ${fmt(E.length)}건, 그중 추정 ${fmt(o.edges.heuristic || 0)}건.`), o.classpath_jars > 0 && L(` Classpath: ${o.classpath_jars} jars.`, ` 클래스패스 JAR ${o.classpath_jars}개.`),
+      Object.keys(o.excluded_files).length > 0 && el("b", {}, L(" Not analyzed: ", " 분석하지 않은 언어: "), Object.keys(o.excluded_files).sort().map(k => `${k} ${o.excluded_files[k]}`).join(", "), ".")),
+    MISSING(),
+    o.warnings && o.warnings.length > 0 && el("div", { style: "margin-top:10px;padding:8px 12px;background:var(--warnbg);color:var(--warn)" }, o.warnings.map(w => el("div", {}, L("Warning: ", "경고: "), w))),
+    el("h2", {}, L("Package dependencies", "패키지 의존")),
+    el("p", {}, L("Arrow = depends on. Thickness and number = how many references.", "화살표 = 의존 방향. 굵기와 숫자 = 참조 수."), " ", el("button", { class: "lk", onclick: () => go("deps") }, L("Details", "자세히"))),
+    pkgGraph(d, p => { sel.pkg = p; sel.edge = null; go("deps"); }, e => { sel.edge = e.key; sel.pkg = null; go("deps"); }),
+    el("h2", {}, L("Checks", "점검")),
+    el("p", {}, L(`${fmt(D.checks.warnings)} warnings (rule violations) and ${fmt(D.checks.notes)} notes (candidates)`, `경고(규칙 위반) ${fmt(D.checks.warnings)}건, 참고(후보) ${fmt(D.checks.notes)}건`),
+      D.checks.rules.filter(r => r.count > 0).length > 0 && ": ", D.checks.rules.filter(r => r.count > 0).slice(0, 6).map((r, i) => [i ? " · " : "", `${ruleText(r.id)[0]} ${fmt(r.count)}`]), " — ", el("button", { class: "lk", onclick: () => go("checks") }, L("open", "열기"))),
+    el("div", { class: "cols" },
+      el("div", {}, el("h2", {}, L("Most depended-on classes", "가장 많이 의존받는 클래스")), el("p", {}, L("Number of other classes that reference it (tests excluded).", "이 클래스를 참조하는 다른 클래스 수 (테스트 제외).")),
+        table([L("Class", "클래스"), { t: L("Used by", "의존받음"), num: 1 }, { t: L("Uses", "의존함"), num: 1 }], hot.map(([c, n]) => [symBtn(c), n, d.fout.get(c).size]))),
+      el("div", {}, el("h2", {}, L("External libraries", "외부 라이브러리")), el("p", {}, L("Classes using each library, and how many references.", "라이브러리별 사용 클래스 수와 참조 수.")),
+        table([L("Library", "라이브러리"), { t: L("Classes", "클래스"), num: 1 }, { t: L("References", "참조"), num: 1 }], libs.map(l => [mono(l.name), l.classes.size, fmt(l.refs)])))));
+}
+function pkgGraph(d, onNode, onEdge) {
+  const nodes = [...d.P.values()].map(p => ({ id: p.name, label: plabel(p.name), sub: `${p.classes.length} ${L("classes", "클래스")}` }));
+  if (nodes.length < 2 && !d.pd.size) return el("div", { class: "empty" }, L("This repository has a single package, so there is no package graph. See the graph inside the package under Dependencies.", "패키지가 하나뿐이라 패키지 간 그래프는 없습니다. 의존성 화면의 패키지 내부 그래프를 보세요."));
+  // A dense graph is unreadable with every edge drawn. Keep the strongest, every cycle, and whatever touches the selection; the matrix below has all of them.
+  const all = [...d.pd.values()].sort((a, b) => b.w - a.w), MAX = 26;
+  const keep = sel.allEdges || all.length <= MAX ? all : all.filter((e, i) => i < MAX || e.cyc || e.key === sel.edge || e.s === sel.pkg || e.t === sel.pkg);
+  const hidden = all.length - keep.length;
+  return [graph(nodes, keep, { id: "p", sel: sel.pkg, selEdge: sel.edge, onNode: n => onNode(n.id), onEdge, label: L("package dependency graph", "패키지 의존 그래프") }),
+    (hidden > 0 || sel.allEdges) && el("p", { class: "note" }, hidden > 0 ? L(`${hidden} weaker dependencies are hidden to keep this readable. `, `읽기 쉽도록 약한 의존 ${hidden}개를 숨겼습니다. `) : "",
+      el("button", { class: "lk", onclick: () => { sel.allEdges = !sel.allEdges; render(); } }, sel.allEdges ? L("Show only the strongest", "강한 의존만 보기") : L("Show all", "모두 보기")))];
+}
+function libraries() {
+  const m = new Map();
+  for (const e of E) {
+    const t = S[e.d], c = S[e.s].cls;
+    if (!t.ext || !c || c.test) continue;
+    const n = lib(t.id);
+    if (/^(java|javax|jdk|com\.sun|sun)\./.test(n + ".") || n === "std" || n === "builtin") continue; // the JDK and the Go standard library are not dependencies worth listing
+    const x = m.get(n) || m.set(n, { name: n, classes: new Set(), refs: 0 }).get(n);
+    x.classes.add(c); x.refs++;
+  }
+  return [...m.values()].sort((a, b) => b.classes.size - a.classes.size || b.refs - a.refs);
+}
+
+// ---------- metrics ----------
+function squarify(items, x, y, w, h) { // squarified treemap (Bruls et al.); items sorted by value, descending
+  const total = items.reduce((a, i) => a + i.v, 0), out = [];
+  if (!total || w <= 0 || h <= 0) return out;
+  const scale = w * h / total;
+  let row = [], rx = x, ry = y, rw = w, rh = h;
+  const worst = (r, side) => { const s = r.reduce((a, q) => a + q.a, 0), mx = Math.max(...r.map(q => q.a)), mn = Math.min(...r.map(q => q.a)); return Math.max(side * side * mx / (s * s), s * s / (side * side * mn)); };
+  const flush = () => {
+    const sum = row.reduce((a, q) => a + q.a, 0);
+    if (rw >= rh) { const cw = sum / rh; let cy = ry; for (const q of row) { const ch = q.a / cw; out.push({ item: q.i, x: rx, y: cy, w: cw, h: ch }); cy += ch; } rx += cw; rw -= cw; }
+    else { const ch = sum / rw; let cx = rx; for (const q of row) { const cw = q.a / ch; out.push({ item: q.i, x: cx, y: ry, w: cw, h: ch }); cx += cw; } ry += ch; rh -= ch; }
+    row = [];
+  };
+  for (const i of items) { const q = { i, a: i.v * scale }, side = Math.min(rw, rh); if (row.length && worst([...row, q], side) > worst(row, side)) flush(); row.push(q); }
+  if (row.length) flush();
+  return out;
+}
+function treemap() {
+  const cs = M.classes.filter(c => (withTests || !c.test) && c.loc > 0), W = 1130, H = 380;
+  if (!cs.length) return null;
+  const groups = new Map();
+  for (const c of cs) (groups.get(c.package) || groups.set(c.package, []).get(c.package)).push(c);
+  const pk = [...groups].map(([name, list]) => ({ name, list: list.sort((a, b) => b.loc - a.loc), v: list.reduce((a, c) => a + c.loc, 0) })).sort((a, b) => b.v - a.v);
+  const g = sv("svg", { class: "tm", viewBox: `0 0 ${W} ${H}`, width: "100%", role: "img", "aria-label": L("treemap of classes by size and complexity", "크기와 복잡도로 본 클래스 트리맵") });
+  const bucket = cc => cc > 20 ? 4 : cc > 10 ? 3 : cc > 5 ? 2 : 1;
+  for (const r of squarify(pk, 0, 0, W, H)) {
+    const head = r.h > 34 && r.w > 60 ? 13 : 0;
+    for (const q of squarify(r.item.list.map(c => ({ c, v: c.loc })), r.x + 1, r.y + head + 1, r.w - 2, r.h - head - 2)) {
+      const c = q.item.c, b = bucket(c.max_cc), sym = byId.get(c.id);
+      const rect = sv("rect", { x: q.x, y: q.y, width: Math.max(0, q.w), height: Math.max(0, q.h), class: "c" + b, tabindex: 0, role: "button" }, sv("title", {}, `${short(c.id)} — ${c.loc} ${L("lines", "줄")}, ${L("max complexity", "최대 복잡도")} ${c.max_cc}, WMC ${c.wmc}`));
+      if (sym) { rect.addEventListener("click", () => go("code/" + encodeURIComponent(c.id))); rect.addEventListener("keydown", k => k.key === "Enter" && go("code/" + encodeURIComponent(c.id))); }
+      g.append(rect);
+      const name = short(c.id), fit = Math.floor((q.w - 6) / 6.7);
+      if (q.h > 15 && fit >= 4) g.append(sv("text", { x: q.x + 3, y: q.y + 12, class: b > 2 ? "t34" : "t12" }, name.length > fit ? name.slice(0, fit - 1) + "…" : name));
+    }
+    g.append(sv("rect", { x: r.x, y: r.y, width: r.w, height: r.h, class: "p" }));
+    if (head) { const fit = Math.floor((r.w - 6) / 6.5), n = plabel(r.item.name); g.append(sv("text", { x: r.x + 3, y: r.y + 11, class: "p" }, n.length > fit ? n.slice(0, fit - 1) + "…" : n)); }
+  }
+  return [g, el("p", { class: "note" }, L("Area = lines of code. Colour = highest cyclomatic complexity of any method in the class:", "면적 = 코드 줄 수. 색 = 클래스 안에서 가장 높은 메서드 복잡도:"),
+    [["c1", "1–5"], ["c2", "6–10"], ["c3", "11–20"], ["c4", "21+"]].map(([c, t]) => [el("svg", { class: "sw", viewBox: "0 0 12 12" }), t]).map((x, i) => { x[0] = sv("svg", { class: "sw", viewBox: "0 0 12 12" }, sv("rect", { width: 12, height: 12, class: ["c1", "c2", "c3", "c4"][i] })); return x; }))];
+}
+const defs = () => [
+  ["CC", L("cyclomatic complexity: 1 + if, loop, case, catch, ?:, && and ||", "순환 복잡도: 1 + if, 반복문, case, catch, ?:, &&, ||의 수")],
+  ["WMC", L("weighted methods per class: sum of its methods' CC", "클래스의 메서드 복잡도 합")],
+  ["CBO", L("coupling between objects: other repository classes it references or is referenced by", "결합도: 이 클래스가 참조하거나 이 클래스를 참조하는 저장소 내 다른 클래스 수")],
+  ["RFC", L("response for class: its methods plus the distinct methods they call", "클래스의 메서드 수 + 그 메서드들이 호출하는 서로 다른 메서드 수")],
+  ["DIT", L("depth of inheritance tree", "상속 깊이")], ["NOC", L("direct subclasses and implementers", "직접 하위 클래스·구현체 수")],
+  ["LCOM", L("LCOM4: groups of methods (getters/setters excluded) sharing no field and not calling each other. 1 = cohesive, 2+ = the class does several unrelated things, 0 = not applicable", "LCOM4: 필드를 공유하지도 서로 호출하지도 않는 메서드 묶음 수 (getter/setter 제외). 1 = 응집됨, 2 이상 = 서로 무관한 일을 함께 하고 있음, 0 = 해당 없음")],
+  ["Ca / Ce", L("classes outside the package that depend on it / that it depends on", "패키지 밖에서 의존해 오는 클래스 수 / 패키지가 의존하는 바깥 클래스 수")],
+  [L("Instability", "불안정도"), "Ce / (Ca + Ce)"], [L("Abstractness", "추상도"), L("interfaces and abstract classes / classes", "인터페이스·추상 클래스 / 전체 클래스")],
+  [L("Distance", "거리"), L("|abstractness + instability − 1|: 0 is balanced; near 1 is either rigid (concrete and depended on) or useless (abstract and unused)", "|추상도 + 불안정도 − 1|: 0이면 균형, 1에 가까우면 고치기 어렵거나(구체적인데 많이 의존받음) 쓸모가 적음(추상적인데 안 쓰임)")],
+];
+const scopes = () => ({ // [key, label, abbreviation, threshold]; a function so labels follow the language switch
+  class: { list: () => M.classes, sort: "wmc", cols: [["id", L("Class", "클래스")], ["loc", L("Lines", "줄 수"), "", TH.cloc], ["methods", L("Methods", "메서드")], ["fields", L("Fields", "필드")],
+    ["wmc", L("Complexity sum", "복잡도 합"), "WMC", TH.wmc], ["max_cc", L("Max complexity", "최대 복잡도"), "", TH.cc], ["avg_cc", L("Avg complexity", "평균 복잡도")], ["cbo", L("Coupled classes", "결합 클래스"), "CBO", TH.cbo],
+    ["rfc", L("Response set", "응답 범위"), "RFC"], ["dit", L("Inheritance depth", "상속 깊이"), "DIT"], ["noc", L("Subclasses", "하위 클래스"), "NOC"], ["lcom", L("Unrelated groups", "무관한 묶음"), "LCOM", 1],
+    ["fan_in", L("Used by", "의존받음")], ["fan_out", L("Uses", "의존함")]] },
+  method: { list: () => M.methods, sort: "cc", cols: [["id", L("Method", "메서드")], ["cc", L("Complexity", "복잡도"), "CC", TH.cc], ["nesting", L("Nesting", "중첩 깊이"), "", TH.nest], ["loc", L("Lines", "줄 수"), "", TH.loc],
+    ["statements", L("Statements", "문장")], ["params", L("Parameters", "매개변수"), "", TH.params], ["called_by", L("Called by", "호출됨")], ["calls", L("Calls", "호출함")]] },
+  package: { list: () => M.packages, sort: "loc", cols: [["name", L("Package", "패키지")], ["classes", L("Classes", "클래스")], ["loc", L("Lines", "줄 수")], ["methods", L("Methods", "메서드")],
+    ["avg_cc", L("Avg complexity", "평균 복잡도")], ["max_cc", L("Max complexity", "최대 복잡도"), "", TH.cc], ["ca", L("Used by", "의존받음"), "Ca"], ["ce", L("Uses", "의존함"), "Ce"],
+    ["instability", L("Instability", "불안정도")], ["abstractness", L("Abstractness", "추상도")], ["distance", L("Distance", "거리")]] },
+  file: { list: () => M.files, sort: "code", cols: [["path", L("File", "파일")], ["lines", L("Lines", "전체 줄")], ["code", L("Code", "코드")], ["comment", L("Comment", "주석")], ["blank", L("Blank", "빈 줄")]] },
+})[ms.scope];
+const ms = { scope: "class", sort: {}, filter: "" };
+function metricsView() {
+  const sc = scopes(), [key, dir] = ms.sort[ms.scope] || [sc.sort, -1], q = ms.filter.trim().toLowerCase();
+  const nameOf = r => r.id ? short(r.id) : r.name != null ? plabel(r.name) : r.path;
+  let rows = sc.list().filter(r => (withTests || !r.test) && (!q || nameOf(r).toLowerCase().includes(q)));
+  rows = [...rows].sort((a, b) => { const x = a[key], y = b[key]; return (typeof x === "number" ? x - y : nameOf(a).localeCompare(nameOf(b))) * dir; });
+  const files = M.files.filter(f => withTests || !f.test), methods = M.methods.filter(m => withTests || !m.test);
+  const sum = k => files.reduce((a, f) => a + f[k], 0), avg = methods.length ? (methods.reduce((a, m) => a + m.cc, 0) / methods.length).toFixed(2) : "–";
+  const chip = (k, t) => el("button", { class: "btn", "aria-pressed": String(ms.scope === k), style: ms.scope === k ? "font-weight:600;border-color:var(--ink)" : null, onclick: () => { ms.scope = k; render(); } }, t);
+  const filter = el("input", { type: "search", placeholder: L("filter by name", "이름으로 거르기"), "aria-label": L("filter by name", "이름으로 거르기"), value: ms.filter, style: "width:200px" });
+  filter.addEventListener("input", () => { ms.filter = filter.value; const pos = filter.selectionStart; render(); const f = document.querySelector("#mfilter"); if (f) { f.focus(); f.setSelectionRange(pos, pos); } });
+  filter.id = "mfilter";
+  const test = el("input", { type: "checkbox" }); test.checked = withTests; test.addEventListener("change", () => { withTests = test.checked; render(); });
+  const cell = (r, k) => k === "id" ? (byId.get(r.id) ? symBtn(byId.get(r.id)) : mono(short(r.id))) : k === "name" ? pkgBtn(r.name) : k === "path" ? mono(r.path) : String(r[k]);
+  return el("div", { class: "page" }, el("h1", {}, L("Metrics", "지표")),
+    el("p", {}, L(`${fmt(sum("code"))} lines of code, ${fmt(sum("comment"))} comment lines, ${fmt(sum("blank"))} blank · ${fmt(methods.length)} methods, average complexity ${avg}, highest ${methods.reduce((a, m) => Math.max(a, m.cc), 0)}`,
+      `코드 ${fmt(sum("code"))}줄, 주석 ${fmt(sum("comment"))}줄, 빈 줄 ${fmt(sum("blank"))}줄 · 메서드 ${fmt(methods.length)}개, 평균 복잡도 ${avg}, 최고 ${methods.reduce((a, m) => Math.max(a, m.cc), 0)}`)),
+    treemap(),
+    el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:22px 0 8px" }, chip("class", L("Classes", "클래스")), chip("method", L("Methods", "메서드")), chip("package", L("Packages", "패키지")), chip("file", L("Files", "파일")),
+      filter, el("label", { style: "margin-left:6px" }, test, " ", L("include test code", "테스트 코드 포함")), muted(`${fmt(rows.length)} ${L("rows", "행")}`)),
+    el("div", { class: "scroll" }, el("table", {},
+      el("thead", {}, el("tr", {}, sc.cols.map(([k, t, ab], i) => el("th", { class: "s" + (i ? " num" : ""), tabindex: 0, "aria-sort": k === key ? (dir < 0 ? "descending" : "ascending") : null, onclick: () => { ms.sort[ms.scope] = [k, k === key ? -dir : i ? -1 : 1]; render(); } }, t, k === key ? (dir < 0 ? " ▼" : " ▲") : "", ab && el("span", { class: "ab" }, ab))))),
+      el("tbody", {}, rows.slice(0, 500).map(r => el("tr", {}, sc.cols.map(([k, , , th], i) => el("td", { class: i ? "num" + (th != null && r[k] > th ? " over" : "") : null, style: i ? null : "white-space:nowrap" }, cell(r, k)))))))),
+    el("p", { class: "note" }, el("span", { class: "over" }, L("Red", "빨간 숫자")), L(" = above the check threshold. Click a column title to sort.", " = 점검 기준 초과. 열 제목을 누르면 정렬됩니다.")),
+    rows.length > 500 && el("p", { class: "note" }, L(`Showing 500 of ${fmt(rows.length)}. \`rintel metrics --format csv\` exports all.`, `${fmt(rows.length)}행 중 500행만 표시합니다. 전체는 \`rintel metrics --format csv\`로 내보낼 수 있습니다.`)),
+    el("details", {}, el("summary", {}, L("Metric definitions", "지표 정의")), el("dl", {}, defs().flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]))));
+}
+
+// ---------- 2. dependencies ----------
+function depsView() {
+  const d = deps(), ps = [...d.P.values()];
+  const order = layout(ps.map(p => ({ id: p.name, label: p.name })), [...d.pd.values()]).cols.flat().filter(n => !n.dummy).map(n => n.id);
+  const cell = (a, b) => d.pd.get(a + ">" + b);
+  const detail = () => {
+    if (sel.edge && d.pd.get(sel.edge)) {
+      const e = d.pd.get(sel.edge);
+      return [el("h2", {}, `${plabel(e.s)} → ${plabel(e.t)}`), el("p", {}, L(`${fmt(e.w)} references between ${e.pairs.length} class pairs.`, `클래스 쌍 ${e.pairs.length}개, 참조 ${fmt(e.w)}건.`), e.cyc && el("span", { class: "guess" }, L(" part of a cycle", " 순환에 포함"))),
+        table([L("From", "의존하는 클래스"), L("To", "의존받는 클래스"), { t: L("Refs", "참조"), num: 1 }, L("Kinds", "종류")], e.pairs.sort((a, b) => b.w - a.w).map(x => [symBtn(x.a), symBtn(x.b), x.w, muted(kinds(x.kinds))]))];
+    }
+    if (sel.pkg && d.P.get(sel.pkg)) {
+      const p = d.P.get(sel.pkg), out = [...d.pd.values()].filter(e => e.s === p.name), inc = [...d.pd.values()].filter(e => e.t === p.name);
+      const list = (es, f) => es.length ? table([L("Package", "패키지"), { t: L("Refs", "참조"), num: 1 }], es.sort((a, b) => b.w - a.w).map(e => [el("button", { class: "lk", onclick: () => { sel.edge = e.key; sel.pkg = null; render(); } }, plabel(f(e))), e.w])) : el("div", { class: "empty" }, L("none", "없음"));
+      return [el("h2", {}, plabel(p.name), " ", el("button", { class: "lk", onclick: () => { sel.openPk.add(p.name); go("code"); } }, L("classes", "클래스 보기"))),
+        el("div", { class: "cols" }, el("div", {}, el("p", {}, L("Depends on", "의존하는 패키지")), list(out, e => e.t)), el("div", {}, el("p", {}, L("Depended on by", "의존받는 패키지")), list(inc, e => e.s)))];
+    }
+    return el("p", { class: "note" }, L("Click a package or an arrow to see the classes behind it.", "패키지나 화살표를 누르면 그 뒤의 클래스 관계가 나옵니다."));
+  };
+  const rg = roleGraph(d);
+  return el("div", { class: "page" },
+    el("h1", {}, L("Dependencies", "의존성")),
+    el("p", {}, el("label", {}, (() => { const c = el("input", { type: "checkbox" }); c.checked = withTests; c.addEventListener("change", () => { withTests = c.checked; sel.edge = sel.pkg = null; render(); }); return c; })(), " ", L("include test code", "테스트 코드 포함"))),
+    pkgGraph(d, p => { sel.pkg = sel.pkg === p ? null : p; sel.edge = null; render(); }, e => { sel.edge = sel.edge === e.key ? null : e.key; sel.pkg = null; render(); }),
+    d.P.size > 1 && [el("p", { class: "note" }, L("Arrow = depends on. Red dashed arrows are part of a cycle.", "화살표 = 의존 방향. 빨간 점선은 순환에 포함된 의존입니다.")), detail()],
+    (() => { const one = sel.pkg || (d.P.size === 1 ? [...d.P.keys()][0] : null); return one && d.P.get(one) ? inside(d, one) : null; })(),
+    el("h2", {}, L("Dependency matrix", "의존성 매트릭스")),
+    el("p", {}, L("Row depends on column. Packages are ordered so dependencies fall above the diagonal; a highlighted cell below it goes against that order, which is what a cycle looks like.", "행이 열에 의존합니다. 의존이 대각선 위에 오도록 정렬했고, 대각선 아래에 강조된 칸은 그 순서를 거스르는 의존입니다. 순환이 있으면 여기에 나타납니다.")),
+    el("div", { class: "scroll" }, el("table", { class: "dsm" },
+      el("thead", {}, el("tr", {}, el("th", { class: "l" }, ""), order.map((p, i) => el("th", { title: plabel(p) }, String(i + 1))))),
+      el("tbody", {}, order.map((a, i) => el("tr", {}, el("th", { class: "l" }, `${i + 1}  `, pkgBtn(a)), order.map((b, j) => {
+        const e = cell(a, b);
+        const td = el("td", { class: (i === j ? "d" : e && j < i ? "up c" : e ? "c" : "") + (e && sel.edge === e.key ? " sel" : ""), tabindex: e ? 0 : null }, i === j ? "" : e ? String(e.w) : "");
+        if (e) td.addEventListener("click", () => { sel.edge = e.key; sel.pkg = null; render(); });
+        return td;
+      })))))),
+    el("h2", {}, L("Coupling", "결합도")),
+    el("p", {}, L("Used by = classes outside that depend on it. Uses = classes outside it depends on. Instability = uses / (used by + uses): 0 is depended on by everything, 1 depends on everything.", "의존받음 = 이 패키지에 의존하는 바깥 클래스 수. 의존함 = 이 패키지가 의존하는 바깥 클래스 수. 불안정도 = 의존함 / (의존받음 + 의존함): 0이면 모두가 기대는 쪽, 1이면 모두에게 기대는 쪽.")),
+    table([L("Package", "패키지"), { t: L("Classes", "클래스"), num: 1 }, { t: L("Used by", "의존받음"), num: 1 }, { t: L("Uses", "의존함"), num: 1 }, { t: L("Instability", "불안정도"), num: 1 }],
+      ps.sort((a, b) => a.name.localeCompare(b.name)).map(p => [pkgBtn(p.name), p.classes.length, p.ca.size, p.ce.size, p.ca.size + p.ce.size ? (p.ce.size / (p.ca.size + p.ce.size)).toFixed(2) : "–"])),
+    hasRoles && [el("h2", {}, L("Layers", "계층")),
+      el("p", {}, L("Classes grouped by their Spring stereotype. Numbers are references from one layer to another; a red dashed arrow points from a lower layer up to a higher one.", "Spring 스테레오타입으로 묶은 계층 간 참조 수입니다. 빨간 점선은 아래 계층에서 위 계층으로 향하는 의존입니다.")),
+      rg],
+    el("h2", {}, L("External libraries", "외부 라이브러리")),
+    el("p", {}, L("JDK excluded.", "JDK 제외.")),
+    table([L("Library", "라이브러리"), { t: L("Classes", "클래스"), num: 1 }, { t: L("References", "참조"), num: 1 }], libraries().map(l => [mono(l.name), l.classes.size, fmt(l.refs)])));
+}
+// The dependency graph of the classes (Go: types and files) inside one package.
+function inside(d, name) {
+  const members = new Set(d.P.get(name).classes);
+  let edges = [...d.cd.values()].filter(x => members.has(x.a) && members.has(x.b));
+  if (!edges.length) return null;
+  const degree = new Map();
+  for (const x of edges) { degree.set(x.a, (degree.get(x.a) || 0) + x.w); degree.set(x.b, (degree.get(x.b) || 0) + x.w); }
+  const keepNodes = new Set([...degree].sort((a, b) => b[1] - a[1]).slice(0, 40).map(x => x[0])), total = degree.size;
+  edges = edges.filter(x => keepNodes.has(x.a) && keepNodes.has(x.b)).sort((a, b) => b.w - a.w);
+  const shown = sel.allInside ? edges : edges.slice(0, 45);
+  const used = new Set(shown.flatMap(x => [x.a, x.b]));
+  return [el("h2", {}, L(`Inside ${plabel(name)}`, `${plabel(name)} 내부`)),
+    el("p", {}, L("How the classes of this package depend on each other. Click one to open it.", "이 패키지 안의 클래스들이 서로 어떻게 의존하는지 보여줍니다. 누르면 해당 항목이 열립니다.")),
+    graph([...used].map(c => ({ id: "c" + c.i, label: clip(member(c) === short(c.id) ? short(c.id) : short(c.id).replace(/^.*\//, "")), sym: c })), shown.map(x => ({ s: "c" + x.a.i, t: "c" + x.b.i, w: x.w })), // cycles inside one package are ordinary, so they are not flagged here
+      { id: "i", onNode: n => go("code/" + encodeURIComponent(n.sym.id)), label: L("dependencies inside the package", "패키지 내부 의존 그래프") }),
+    (edges.length > shown.length || total > keepNodes.size || sel.allInside) && el("p", { class: "note" },
+      edges.length > shown.length ? L(`Showing the ${shown.length} strongest of ${edges.length} dependencies. `, `의존 ${edges.length}개 중 강한 ${shown.length}개만 표시했습니다. `) : "",
+      total > keepNodes.size ? L(`${total - keepNodes.size} less connected classes are left out. `, `연결이 적은 클래스 ${total - keepNodes.size}개는 뺐습니다. `) : "",
+      (edges.length > 45) && el("button", { class: "lk", onclick: () => { sel.allInside = !sel.allInside; render(); } }, sel.allInside ? L("Show fewer", "줄여 보기") : L("Show all", "모두 보기")))];
+}
+function roleDeps(d) {
+  const m = new Map();
+  for (const x of d.cd.values()) {
+    if (!x.a.role || !x.b.role || x.a.role === x.b.role) continue;
+    const k = x.a.role + ">" + x.b.role, y = m.get(k) || m.set(k, { s: x.a.role, t: x.b.role, w: 0, pairs: [], key: k }).get(k);
+    y.w += x.w; y.pairs.push(x);
+  }
+  return m;
+}
+function roleGraph(d) {
+  const m = roleDeps(d), used = new Set([...m.values()].flatMap(e => [e.s, e.t]));
+  const count = r => d.cls.filter(c => c.role === r).length;
+  if (!used.size) return el("div", { class: "empty" }, L("No stereotype-annotated classes depend on each other.", "스테레오타입이 붙은 클래스 간 의존이 없습니다."));
+  for (const e of m.values()) e.cyc = roles.includes(e.s) && roles.includes(e.t) && roles.indexOf(e.s) > roles.indexOf(e.t);
+  return graph([...used].map(r => ({ id: r, label: r, sub: `${count(r)} ${L("classes", "클래스")}` })), [...m.values()], { id: "r", label: L("layer graph", "계층 그래프") });
+}
+
+// ---------- 3. structure: package tree | members | detail ----------
+let query = "";
+function codeView(cur) {
+  const d = deps(), cls = cur ? cur.cls : null;
+  if (cls) sel.openPk.add(cls.pkg);
+  const q = query.trim().toLowerCase();
+  const tree = el("nav", { "aria-label": L("packages", "패키지") });
+  if (q) {
+    const hits = S.filter(s => !s.ext && short(s.id).toLowerCase().includes(q)).sort((a, b) => (a.type === "class" ? 0 : 1) - (b.type === "class" ? 0 : 1) || short(a.id).length - short(b.id).length).slice(0, 300);
+    tree.append(el("div", { class: "hd" }, L(`${hits.length} matches`, `${hits.length}건`)), ...hits.map(s => el("button", { class: "row mono", "aria-current": s === cur ? "true" : null, onclick: () => go("code/" + encodeURIComponent(s.id)) }, el("span", { class: "k" }, s.type[0].toUpperCase()), short(s.id))));
+  } else {
+    tree.append(el("div", { class: "hd" }, L("Packages", "패키지")));
+    for (const p of pkgNames) {
+      const cs = classes.filter(c => c.pkg === p).sort((a, b) => a.test - b.test || short(a.id).localeCompare(short(b.id))), open = sel.openPk.has(p);
+      tree.append(el("button", { class: "row", "aria-expanded": String(open), onclick: () => { open ? sel.openPk.delete(p) : sel.openPk.add(p); render(); } }, el("span", { class: "k" }, open ? "▾" : "▸"), plabel(p), el("span", { class: "c" }, cs.length)));
+      if (open) for (const c of cs) tree.append(el("button", { class: "row", style: "padding-left:32px", "aria-current": c === cls ? "true" : null, onclick: () => go("code/" + encodeURIComponent(c.id)) },
+        el("span", { class: "k", title: c.kind }, { interface: "I", enum: "E", record: "R", struct: "S", file: "F", type: "T" }[c.kind] || "C"), inPkg(c), c.test && el("span", { class: "tag" }, L("test", "테스트"))));
+    }
+  }
+  const mid = el("section", { "aria-label": L("members", "멤버") });
+  if (cls) {
+    const sup = cls.out.filter(e => e.rel === "extends" || e.rel === "implements").map(e => `${e.rel} ${short(S[e.d].id)}`).join(", ");
+    mid.append(el("div", { class: "sub" }, el("button", { class: "lk mono", style: "font-weight:600", onclick: () => go("code/" + encodeURIComponent(cls.id)) }, short(cls.id)),
+      el("div", { class: "muted", style: "font-size:12px" }, [cls.kind, cls.role, sup].filter(Boolean).join(" · ")), el("div", { class: "mono muted" }, fname(cls.file))),
+      el("div", { class: "hd mrow" }, el("span", {}, L("Member", "멤버")), el("span", { class: "num" }, L("Line", "줄")), el("span", { class: "num" }, L("Calls", "호출"))));
+    const all = [];
+    const walk = c => c.kids.forEach(k => { all.push(k); if (k.type === "class") walk(k); });
+    walk(cls);
+    for (const m of all.sort((a, b) => a.line - b.line || a.id.localeCompare(b.id)))
+      mid.append(el("button", { class: "row mono mrow", "aria-current": m === cur ? "true" : null, onclick: () => go("code/" + encodeURIComponent(m.id)) },
+        el("span", { style: "overflow-wrap:anywhere" }, parts(member(m)), m.synth && el("span", { class: "tag" }, m.synth === "lombok" ? "Lombok" : L("implicit", "암시적")), m.type === "field" && el("span", { class: "tag" }, L("field", "필드"))),
+        el("span", { class: "num muted" }, m.line || ""), el("span", { class: "num" }, m.type === "field" ? "" : m.in.filter(e => e.rel === "calls").length)));
+  } else mid.append(el("div", { class: "empty", style: "padding:12px" }, L("Pick a class.", "클래스를 고르세요.")));
+  return el("div", { class: "ide" }, tree, mid, el("section", {}, cur ? detail(cur, d) : el("div", { class: "empty", style: "padding:12px" }, L("Pick a symbol on the left, or search above.", "왼쪽에서 심볼을 고르거나 위에서 검색하세요."))));
+}
+function detail(s, d) {
+  const isClass = s.type === "class";
+  const calls = s.in.filter(e => e.rel === "calls"), outs = s.out.filter(e => e.rel === "calls"), refs = s.in.filter(e => e.rel !== "calls"), uses = s.out.filter(e => e.rel !== "calls");
+  const tabs = isClass ? [["deps", L("Dependencies", "의존 관계")], ["hier", L("Hierarchy", "상속 계층")], ["refs", `${L("References", "참조")} ${refs.length}`], ["uses", `${L("Uses", "사용")} ${uses.length}`]]
+    : s.type === "field" ? [["refs", `${L("References", "참조")} ${refs.length}`]]
+    : [["in", `${L("Called by", "호출하는 곳")} ${calls.length}`], ["out", `${L("Calls", "호출 대상")} ${outs.length}`], ["graph", L("Call graph", "호출 그래프")], ["refs", `${L("References", "참조")} ${refs.length}`], ["uses", `${L("Uses", "사용")} ${uses.length}`]];
+  if (srcLines(s.file)) tabs.push(["src", L("Source", "소스")]);
+  const mm = mMethod.get(s.id), mc = mClass.get(s.id), kv = pairs => el("div", { class: "kv" }, pairs.map(([k, v]) => el("span", {}, k, " ", el("b", {}, String(v)))));
+  const facts = mm ? kv([[L("complexity", "복잡도"), mm.cc], [L("nesting", "중첩"), mm.nesting], [L("lines", "줄"), mm.loc], [L("statements", "문장"), mm.statements], [L("parameters", "매개변수"), mm.params]])
+    : mc ? kv([[L("lines", "줄"), mc.loc], [L("methods", "메서드"), mc.methods], [L("fields", "필드"), mc.fields], [L("complexity sum", "복잡도 합"), mc.wmc], [L("max complexity", "최대 복잡도"), mc.max_cc],
+      [L("coupled classes", "결합 클래스"), mc.cbo], [L("unrelated groups", "무관한 묶음"), mc.lcom], [L("inheritance depth", "상속 깊이"), mc.dit], [L("subclasses", "하위 클래스"), mc.noc]]) : null;
+  if (!tabs.some(t => t[0] === sel.tab)) sel.tab = tabs[0][0];
+  const ep = D.endpoints.filter(e => e.handler === s.id).map(e => `${e.method} ${e.path}`).join(", ");
+  let body;
+  if (sel.tab === "deps") body = classDeps(s, d);
+  else if (sel.tab === "hier") body = hierarchy(s);
+  else if (sel.tab === "graph") body = butterfly(s);
+  else if (sel.tab === "src") body = sourceView(s);
+  else if (sel.tab === "in") body = callTree(s, calls, "in");
+  else if (sel.tab === "out") body = [flat(outs, e => S[e.d]), s.unres > 0 && el("p", { class: "note", style: "padding:0 12px" }, L(`${s.unres} call(s) inside this symbol could not be resolved; the list may be incomplete.`, `이 심볼 안의 호출 ${s.unres}건을 해석하지 못해 목록이 불완전할 수 있습니다.`))];
+  else if (sel.tab === "refs") body = callTree(s, refs, "in");
+  else body = flat(uses, e => S[e.d]);
+  return [el("div", { class: "sub", style: "border:0;padding-bottom:6px" }, el("div", { style: "display:flex;flex-wrap:wrap;gap:4px 12px;align-items:baseline" },
+      el("strong", { class: "mono", style: "font-size:15px" }, parts(short(s.id))), el("span", { class: "mono muted" }, loc(s.file, s.line)), ep && el("span", { class: "mono" }, ep),
+      s.synth && el("span", { class: "tag" }, s.synth === "lombok" ? L("generated by Lombok", "Lombok 생성") : L("implicit", "암시적"))), facts),
+    el("div", { class: "tabs", role: "tablist" }, tabs.map(([k, t]) => el("button", { class: "tab", role: "tab", "aria-selected": String(sel.tab === k), onclick: () => go("code/" + encodeURIComponent(s.id) + "@" + k) }, t))), body];
+}
+function flat(edges, pick) {
+  if (!edges.length) return el("div", { class: "empty", style: "padding:8px 12px" }, L("none", "없음"));
+  return el("div", { class: "tree" }, [...edges].sort((a, b) => a.file - b.file || a.line - b.line).slice(0, 800).map(e => { const o = pick(e);
+    return el("div", { class: "u" }, el("span", {}), el("span", { class: "num muted" }, e.line || ""), el("span", {}, o.ext ? short(o.id) : symBtn(o), o.ext && el("span", { class: "tag" }, L("library", "라이브러리")), e.rel !== "calls" && el("span", { class: "tag" }, e.rel), " ", guess(e), snip(e.file, e.line))); }));
+}
+// Callers on the left, callees on the right, the symbol in the middle; depth 1 to 3 in both directions.
+function butterfly(s) {
+  const depth = sel.depth || 1, nodes = new Map([[s.i, { id: "n" + s.i, label: clip(short(s.id)), sym: s, layer: depth, center: true }]]), edges = [], CAP = 8;
+  let libs = 0;
+  for (const dir of [-1, 1]) {
+    let frontier = [s];
+    for (let d = 1; d <= depth; d++) {
+      const next = [];
+      for (const u of frontier) {
+        const by = new Map();
+        for (const e of dir < 0 ? u.in : u.out) {
+          if (e.rel !== "calls") continue;
+          const o = S[dir < 0 ? e.s : e.d];
+          if (o.ext) { if (d === 1 && dir > 0) libs++; continue; }
+          by.set(o, (by.get(o) || 0) + 1);
+        }
+        const top = [...by].sort((a, b) => b[1] - a[1] || short(a[0].id).localeCompare(short(b[0].id)));
+        for (const [o, w] of top.slice(0, CAP)) {
+          if (!nodes.has(o.i)) { nodes.set(o.i, { id: "n" + o.i, label: clip(short(o.id)), sym: o, layer: depth + dir * d }); next.push(o); }
+          const a = nodes.get(dir < 0 ? o.i : u.i), b = nodes.get(dir < 0 ? u.i : o.i);
+          if (a.layer < b.layer) edges.push({ s: a.id, t: b.id, w });
+        }
+        if (top.length > CAP) { const id = "more" + u.i + dir; nodes.set(id, { id, label: `+${top.length - CAP} ${L("more", "개 더")}`, layer: depth + dir * d }); edges.push(dir < 0 ? { s: id, t: "n" + u.i, w: 1 } : { s: "n" + u.i, t: id, w: 1 }); }
+      }
+      frontier = next;
+    }
+  }
+  const btn = n => el("button", { class: "btn", "aria-pressed": String(depth === n), style: depth === n ? "font-weight:600;border-color:var(--ink)" : null, onclick: () => { sel.depth = n; render(); } }, String(n));
+  return el("div", { style: "padding:10px 12px" },
+    el("div", { style: "display:flex;gap:6px;align-items:center;margin-bottom:8px" }, muted(L("Depth", "깊이")), btn(1), btn(2), btn(3), muted(L("callers ← symbol → callees", "호출자 ← 심볼 → 호출 대상"))),
+    nodes.size > 1 ? graph([...nodes.values()], edges, { id: "b", fixed: n => n.layer, onNode: n => n.sym && n.sym !== s && go("code/" + encodeURIComponent(n.sym.id)), label: L("call graph", "호출 그래프") }) : el("div", { class: "empty" }, L("No calls in or out within the repository.", "저장소 안에서 들어오거나 나가는 호출이 없습니다.")),
+    libs > 0 && el("p", { class: "note" }, L(`${libs} library call(s) are not drawn; see the Calls tab.`, `라이브러리 호출 ${libs}건은 그리지 않았습니다. 호출 대상 탭에서 볼 수 있습니다.`)));
+}
+const clip = t => t.length > 36 ? t.slice(0, 35) + "…" : t;
+function hierarchy(c) {
+  const nodes = new Map([[c.i, { id: "n" + c.i, label: clip(short(c.id)), sym: c, center: true }]]), edges = [];
+  const walk = (x, up, seen) => {
+    for (const e of up ? x.out : x.in) {
+      if (e.rel !== "extends" && e.rel !== "implements") continue;
+      const o = S[up ? e.d : e.s];
+      if (!nodes.has(o.i)) nodes.set(o.i, { id: "n" + o.i, label: clip(short(o.id)), sub: o.ext ? L("library", "라이브러리") : o.kind, sym: o.ext ? null : o });
+      edges.push({ s: "n" + (up ? x.i : o.i), t: "n" + (up ? o.i : x.i), w: 1 });
+      if (!seen.has(o) && seen.size < 60) { seen.add(o); walk(o, up, seen); }
+    }
+  };
+  walk(c, true, new Set([c])); walk(c, false, new Set([c]));
+  if (nodes.size < 2) return el("div", { class: "empty", style: "padding:8px 12px" }, L("No superclass, interface or subclass in the repository.", "상위 클래스·인터페이스나 하위 클래스가 없습니다."));
+  return el("div", { style: "padding:10px 12px" }, el("p", { class: "note", style: "margin:0 0 8px" }, L("Arrows point from a class to what it extends or implements.", "화살표는 클래스에서 그 상위 타입(extends/implements)으로 향합니다.")),
+    graph([...nodes.values()], edges, { id: "h", onNode: n => n.sym && n.sym !== c && go("code/" + encodeURIComponent(n.sym.id)), label: L("inheritance hierarchy", "상속 계층") }));
+}
+function sourceView(s) {
+  const ls = srcLines(s.file), m = mMethod.get(s.id) || mClass.get(s.id), from = Math.max(1, s.line), to = Math.min(ls.length, from + Math.min(m ? m.loc : 1, 600) - 1);
+  const out = [];
+  for (let i = Math.max(1, from - 2); i <= Math.min(ls.length, to + 2); i++) out.push(el("div", { class: i >= from && i <= to ? null : "muted" }, el("span", {}, String(i)), el("span", {}, ls[i - 1].replace(/\t/g, "    "))));
+  return el("div", { class: "src" }, out);
+}
+// Call hierarchy: grouped by production/test and file at the top, each caller expandable into its own callers.
+function callTree(s, edges, dir) {
+  if (!edges.length) {
+    const why = D.endpoints.some(e => e.handler === s.id) ? L("No caller in the code: this is an endpoint handler, invoked by the framework.", "코드에 호출자가 없습니다. 엔드포인트 핸들러라 프레임워크가 호출합니다.") : s.ann ? L("No caller in the code. It is annotated, so a framework may invoke it.", "코드에 호출자가 없습니다. 어노테이션이 있어 프레임워크가 호출할 수 있습니다.") : L("none found", "없음");
+    return el("div", { class: "empty", style: "padding:8px 12px" }, why);
+  }
+  const line = (e, path, depth) => {
+    const o = S[e.s], more = o.in.filter(x => x.rel === "calls"), key = path + "/" + e.s + ":" + e.line, open = sel.open.has(key);
+    const rows = [el("div", { class: "u", style: `padding-left:${12 + depth * 18}px` },
+      more.length && depth < 9 ? el("button", { class: "tw", "aria-expanded": String(open), "aria-label": L("callers", "호출자"), onclick: () => { open ? sel.open.delete(key) : sel.open.add(key); render(); } }, open ? "▾" : "▸") : el("span", {}),
+      el("span", { class: "num muted" }, e.line || ""), el("span", {}, symBtn(o, depth ? short(o.id) : member(o)), e.rel !== "calls" && el("span", { class: "tag" }, e.rel), " ", guess(e),
+        [...new Set(D.endpoints.filter(x => x.handler === o.id).map(x => `${x.method} ${x.path}`))].slice(0, 3).map(t => el("span", { class: "tag" }, t)), snip(e.file, e.line)))];
+    if (open) for (const x of [...more].sort((a, b) => a.file - b.file || a.line - b.line).slice(0, 100)) if (!path.includes("/" + x.s + ":")) rows.push(...line(x, key, depth + 1));
+    return rows;
+  };
+  const out = [];
+  for (const [isTest, title] of [[false, L("Production code", "운영 코드")], [true, L("Tests", "테스트")]]) {
+    const part = edges.filter(e => S[e.s].test === isTest);
+    if (!part.length) continue;
+    out.push(el("div", { class: "g top" }, title, " ", muted(part.length)));
+    const files = new Map();
+    for (const e of part) (files.get(e.file) || files.set(e.file, []).get(e.file)).push(e);
+    for (const [f, es] of [...files].sort((a, b) => fname(a[0]).localeCompare(fname(b[0])))) {
+      const key = dir + s.i + ":" + f, shut = sel.open.has("x" + key) || (isTest && !sel.open.has("o" + key));
+      out.push(el("div", { class: "g", style: "padding-left:26px" }, el("button", { class: "tw", "aria-expanded": String(!shut), onclick: () => { if (isTest) shut ? sel.open.add("o" + key) : sel.open.delete("o" + key); else shut ? sel.open.delete("x" + key) : sel.open.add("x" + key); render(); } }, shut ? "▸" : "▾"), fname(f), " ", muted(es.length)));
+      if (!shut) for (const e of es.sort((a, b) => a.line - b.line)) out.push(...line(e, key, 2));
+    }
+  }
+  return el("div", { class: "tree" }, out);
+}
+function classDeps(c, d) {
+  const inc = [...d.cd.values()].filter(x => x.b === c).sort((a, b) => b.w - a.w), out = [...d.cd.values()].filter(x => x.a === c).sort((a, b) => b.w - a.w);
+  if (!d.fin.has(c)) return el("div", { class: "empty", style: "padding:8px 12px" }, L("This is test code; switch on \"include test code\" in Dependencies to see its graph.", "테스트 코드입니다. 의존성 화면에서 \"테스트 코드 포함\"을 켜면 그래프가 나옵니다."));
+  const N = 12, cut = (xs, f) => { const top = xs.slice(0, N).map(f); if (xs.length > N) top.push({ id: "+" + f(xs[0]).side, label: `+${xs.length - N} ${L("more", "개 더")}`, side: f(xs[0]).side, w: 0 }); return top; };
+  const left = cut(inc, x => ({ id: "L" + x.a.i, label: short(x.a.id), sym: x.a, side: 0, w: x.w })), right = cut(out, x => ({ id: "R" + x.b.i, label: short(x.b.id), sym: x.b, side: 2, w: x.w }));
+  const nodes = [...left, { id: "C", label: short(c.id), center: true, side: 1 }, ...right];
+  const edges = [...left.filter(n => n.w).map(n => ({ s: n.id, t: "C", w: n.w })), ...right.filter(n => n.w).map(n => ({ s: "C", t: n.id, w: n.w }))];
+  const list = (xs, pick, title) => el("div", {}, el("p", { style: "margin:10px 0 4px" }, title, " ", muted(xs.length)), xs.length ? table([L("Class", "클래스"), { t: L("Refs", "참조"), num: 1 }, L("Kinds", "종류")], xs.map(x => [symBtn(pick(x)), x.w, muted(kinds(x.kinds))])) : el("div", { class: "empty" }, L("none", "없음")));
+  return el("div", { style: "padding:10px 12px" },
+    el("p", { class: "note", style: "margin:0 0 8px" }, L(`Used by ${d.fin.get(c).size} classes, uses ${d.fout.get(c).size}. ${c.testRefs ? `Referenced ${c.testRefs} times from tests.` : "No test references it directly."}`, `${d.fin.get(c).size}개 클래스가 의존하고, ${d.fout.get(c).size}개 클래스에 의존합니다. ${c.testRefs ? `테스트에서 ${c.testRefs}번 참조합니다.` : "테스트가 직접 참조하지 않습니다."}`)),
+    nodes.length > 1 ? graph(nodes, edges, { id: "c", fixed: n => n.side, onNode: n => n.sym && go("code/" + encodeURIComponent(n.sym.id)), label: L("class dependency graph", "클래스 의존 그래프") }) : null,
+    el("div", { class: "cols" }, list(inc, x => x.a, L("Used by", "의존받음")), list(out, x => x.b, L("Uses", "의존함"))));
+}
+
+// ---------- 4. API ----------
+function reach(h) { // repositories reachable through resolved or inferred calls, at most 5 hops
+  const seen = new Set([h]), found = new Set();
+  let frontier = [h];
+  for (let depth = 0; depth < 5 && frontier.length; depth++) {
+    const next = [];
+    for (const s of frontier) for (const e of s.out) {
+      const t = S[e.d];
+      if (e.rel !== "calls" || t.ext || seen.has(t)) continue;
+      seen.add(t); next.push(t);
+      if (t.cls && t.cls.role === "repository") found.add(t.cls);
+    }
+    frontier = next;
+  }
+  return [...found];
+}
+function apiView() {
+  if (!D.endpoints.length) return el("div", { class: "page" }, el("h1", {}, "API"), el("div", { class: "empty" }, L("No REST endpoints found.", "REST 엔드포인트를 찾지 못했습니다.")));
+  const groups = new Map(), hasRepos = classes.some(c => c.role === "repository");
+  for (const e of D.endpoints) { const h = byId.get(e.handler), c = h && h.cls; const k = c ? c.id : "?"; (groups.get(k) || groups.set(k, { c, es: [] }).get(k)).es.push({ e, h }); }
+  return el("div", { class: "page" }, el("h1", {}, L("REST endpoints", "REST 엔드포인트"), " ", muted(D.endpoints.length)),
+    el("p", {}, L("Read from mapping annotations (Spring) and router registrations (Go).", "매핑 어노테이션(Spring)과 라우터 등록 코드(Go)에서 읽은 값입니다."), hasRepos ? L(" \"Reaches\" lists the repositories the handler gets to through calls, up to 5 hops.", " \"닿는 저장소\"는 핸들러에서 호출을 따라 5단계 안에 도달하는 저장소입니다.") : ""),
+    [...groups.values()].sort((a, b) => b.es.length - a.es.length).map(g => [
+      el("h2", {}, g.c ? symBtn(g.c) : "?", " ", muted(g.es.length), g.c && el("span", { class: "tag mono" }, fname(g.c.file))),
+      table([{ t: L("Method", "메서드"), w: "70px" }, L("Path", "경로"), L("Handler", "핸들러"), { t: L("Line", "줄"), num: 1 }, ...(hasRepos ? [L("Reaches", "닿는 저장소")] : [])],
+        g.es.sort((a, b) => a.e.path.localeCompare(b.e.path) || a.e.method.localeCompare(b.e.method)).map(({ e, h }) => {
+          const r = h ? reach(h) : [];
+          const row = [mono(e.method), mono(e.path), h ? symBtn(h, member(h)) : short(e.handler), e.location ? e.location.start_line : h ? h.line : ""];
+          return hasRepos ? [...row, r.length ? r.map((c, i) => [i ? ", " : "", symBtn(c)]) : muted("–")] : row;
+        }))]));
+}
+
+// ---------- 5. checks: computed by the core (the same results `rintel check` and the MCP tool give) ----------
+const RULES = () => ({ // id: [title, what it means]; a function so the texts follow the language switch
+  "complex-method": [L("Complex methods", "복잡한 메서드"), L("Many branches: hard to test every path.", "분기가 많아 모든 경로를 테스트하기 어렵습니다.")],
+  "long-method": [L("Long methods", "긴 메서드"), L("Too many lines for one method.", "한 메서드에 줄이 너무 많습니다.")],
+  "deep-nesting": [L("Deep nesting", "깊은 중첩"), L("if, loops and the like nested too deep.", "if·반복문 등이 너무 깊게 겹쳤습니다.")],
+  "many-parameters": [L("Too many parameters", "매개변수가 많은 메서드"), L("Hard to call correctly.", "올바르게 호출하기 어렵습니다.")],
+  "large-class": [L("Large classes", "큰 클래스"), L("The sum of method complexity (WMC) or the line count is over the limit.", "메서드 복잡도의 합(WMC)이나 줄 수가 기준을 넘습니다.")],
+  "high-coupling": [L("Highly coupled classes", "결합도가 높은 클래스"), L("References, or is referenced by, many other classes (CBO).", "많은 클래스와 서로 참조합니다 (CBO).")],
+  "low-cohesion": [L("Classes doing unrelated things", "응집도가 낮은 클래스"), L("Methods fall into groups that share no field and never call each other (LCOM4).", "메서드들이 필드도 공유하지 않고 서로 호출하지도 않는 묶음으로 나뉩니다 (LCOM4).")],
+  "package-cycle": [L("Package cycles", "패키지 순환 의존"), L("Packages that depend on each other in a loop.", "서로 돌아가며 의존하는 패키지 묶음.")],
+  "class-cycle": [L("Class cycles", "클래스 순환 의존"), L("Classes that reference each other in a loop.", "서로 돌아가며 참조하는 클래스 묶음.")],
+  "layer-violation": [L("Upward layer dependencies", "계층 역방향 의존"), L("A lower layer references a higher one (controller > service > repository > entity).", "아래 계층이 위 계층을 참조합니다 (controller > service > repository > entity).")],
+  "layer-skip": [L("Controllers using repositories directly", "컨트롤러가 저장소를 직접 참조"), L("There is a service layer, but these skip it.", "서비스 계층이 있는데 건너뛴 경우입니다.")],
+  "unreferenced-method": [L("Unreferenced method candidates", "참조 없는 메서드 후보"), L("Nothing analysis can see references them. Annotated methods, accessors, overrides, entry points and exported Go API are left out.", "분석이 볼 수 있는 범위에서 참조가 없습니다. 어노테이션이 붙은 메서드, 접근자, 오버라이드, 진입점, Go의 공개 API는 제외했습니다.")],
+  "test-only-code": [L("Used only by tests", "테스트에서만 쓰는 운영 코드"), L("Production methods whose only references are in tests.", "참조하는 곳이 테스트뿐인 운영 메서드.")],
+  "untested-class": [L("Classes no test touches", "테스트가 닿지 않는 클래스"), L("No test references the class or any of its members directly.", "클래스나 그 멤버를 직접 참조하는 테스트가 없습니다.")],
+});
+const ruleText = id => RULES()[id] || [id, ""];
+function checksView() {
+  const c = D.checks, by = new Map();
+  for (const f of c.findings) (by.get(f.rule) || by.set(f.rule, []).get(f.rule)).push(f);
+  const hit = c.rules.filter(r => r.count > 0);
+  const lists = r => r.id.endsWith("-cycle") || r.id.startsWith("layer-");
+  const body = r => {
+    const fs = by.get(r.id) || [];
+    if (lists(r)) return table(["#", L("Involved", "관련 항목"), L("Location", "위치")], fs.slice(0, 200).map((f, i) => [i + 1,
+      mono(f.message.includes(": ") ? f.message.slice(f.message.indexOf(": ") + 2) : f.message), f.file ? mono(`${f.file}:${f.line}`) : ""]));
+    const metric = r.threshold > 0;
+    return table([L("Symbol", "심볼"), ...(metric ? [{ t: L("Value", "값"), num: 1 }, { t: L("Limit", "기준"), num: 1 }] : []), L("Location", "위치")],
+      fs.slice(0, 300).map(f => { const s = byId.get(f.symbol); return [s ? symBtn(s) : mono(short(f.symbol || "")), ...(metric ? [el("span", { class: "over" }, String(f.value)), String(f.threshold)] : []), mono(`${f.file}:${f.line}`)]; }));
+  };
+  const jump = id => () => document.getElementById(id).scrollIntoView({ block: "start" });
+  return el("div", { class: "page" }, el("h1", {}, L("Checks", "점검")),
+    el("p", {}, L(`${fmt(c.warnings)} warnings and ${fmt(c.notes)} notes in production code. Warnings break a rule; notes are candidates found with static relations only, where framework, reflection and template calls are invisible. \`rintel check\` gives the same list and fails a build on warnings.`,
+      `운영 코드에서 경고 ${fmt(c.warnings)}건, 참고 ${fmt(c.notes)}건입니다. 경고는 규칙 위반이고, 참고는 정적 관계만으로 찾은 후보입니다(프레임워크·리플렉션·템플릿 호출은 보이지 않습니다). \`rintel check\`가 같은 목록을 내고, 경고가 있으면 빌드를 실패시킵니다.`)),
+    table([L("Check", "점검 항목"), { t: L("Found", "건수"), num: 1 }, L("Kind", "구분"), L("What it means", "의미")], c.rules.map((r, i) => [
+      r.count ? el("button", { class: "lk", onclick: jump("chk" + i) }, ruleText(r.id)[0]) : ruleText(r.id)[0],
+      r.count ? el("span", { class: r.severity === "warning" ? "over" : null, style: r.severity === "warning" ? null : "font-weight:650" }, fmt(r.count)) : muted("0"),
+      muted(r.severity === "warning" ? L("warning", "경고") : L("note", "참고")),
+      muted(ruleText(r.id)[1], r.threshold > 0 ? L(` Limit: ${r.threshold}.`, ` 기준: ${r.threshold}.`) : "")])),
+    el("p", { class: "note" }, L(`${hit.length} of ${c.rules.length} checks found something. Details follow, in the same order.`, `${c.rules.length}개 항목 중 ${hit.length}개에서 발견됐습니다. 아래에 같은 순서로 자세한 내용이 이어집니다.`)),
+    c.rules.map((r, i) => r.count > 0 && [el("h2", { id: "chk" + i }, ruleText(r.id)[0], " ", muted(fmt(r.count))), el("p", {}, ruleText(r.id)[1]), body(r),
+      (by.get(r.id) || []).length > 300 && el("p", { class: "note" }, L("Showing the first 300; `rintel check --format json` has all.", "앞의 300건만 표시합니다. 전체는 `rintel check --format json`으로 볼 수 있습니다."))]));
+}
+
+// ---------- 6. unresolved ----------
+const MISSING = () => { const o = D.overview; return o.missing_packages && o.missing_packages.length > 0 && el("div", { style: "margin:10px 0;padding:8px 12px;background:var(--warnbg);color:var(--warn)" },
+      L(`Most of what is unresolved comes from ${o.missing_packages.length} library packages that are imported but not installed on this machine. Build the project once (Gradle or Maven downloads them) or list the jars in .ri/classpath, then scan again: `,
+        `미해석의 대부분은 소스가 import하지만 이 컴퓨터에 설치되지 않은 라이브러리 패키지 ${o.missing_packages.length}개 때문입니다. 프로젝트를 한 번 빌드하거나(Gradle·Maven이 내려받습니다) .ri/classpath에 JAR을 적은 뒤 다시 스캔하세요: `),
+      el("span", { class: "mono" }, o.missing_packages.join(", "))); };
+function unresolvedView() {
+  if (!D.unresolved.length) return el("div", { class: "page" }, el("h1", {}, L("Unresolved", "미해석")), el("div", { class: "empty" }, L("Nothing unresolved.", "미해석 항목이 없습니다.")));
+  const counts = {};
+  for (const u of D.unresolved) counts[u[2]] = (counts[u[2]] || 0) + 1;
+  const rows = D.unresolved.filter(u => !sel.reason || u[2] === sel.reason), files = new Map();
+  for (const u of rows) (files.get(u[3]) || files.set(u[3], []).get(u[3])).push(u);
+  const chip = (k, t) => el("button", { class: "btn", "aria-pressed": String(sel.reason === k), style: sel.reason === k ? "font-weight:600;border-color:var(--ink)" : null, onclick: () => { sel.reason = k; render(); } }, t);
+  return el("div", { class: "page" }, el("h1", {}, L("Unresolved", "미해석"), " ", muted(D.unresolved.length)),
+    el("p", {}, L("Every place analysis could not see through. A \"no callers\" answer elsewhere is real unless the call site is listed here. String contents are masked.", "분석이 보지 못한 지점 전체입니다. 다른 화면의 \"호출 없음\"은 여기에 없는 한 실제로 없는 것입니다. 문자열 내용은 가립니다.")),
+    MISSING(),
+    el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-bottom:6px" }, chip("", `${L("All", "전체")} ${D.unresolved.length}`), Object.keys(counts).sort().map(k => chip(k, `${k} ${counts[k]}`))),
+    [...files].sort((a, b) => b[1].length - a[1].length).slice(0, 200).map(([f, us]) => [el("h2", { class: "mono", style: "font-size:13px" }, fname(f), " ", muted(us.length), TEST_RE.test(D.files[f] || "") && el("span", { class: "tag" }, L("test", "테스트"))),
+      table([{ t: L("Line", "줄"), num: 1, w: "56px" }, L("Code", "코드"), L("In", "위치한 심볼"), { t: L("Reason", "사유"), w: "150px" }], us.sort((a, b) => a[4] - b[4]).map(([s, text, r, , line]) => [line, mono(text), symBtn(S[s]), muted(r)]))]));
+}
+
+// ---------- routing: the hash is the state, so back/forward and links to a symbol work ----------
+const tabsDef = () => [["overview", L("Overview", "개요")], ["metrics", L("Metrics", "지표")], ["deps", L("Dependencies", "의존성")], ["code", L("Structure", "구조")], ["api", `API ${D.endpoints.length}`], ["checks", L("Checks", "점검")], ["unresolved", `${L("Unresolved", "미해석")} ${D.unresolved.length}`]];
+const go = h => { if (location.hash.slice(1) === h) render(); else location.hash = h; };
+function render() {
+  const h = decodeURIComponent(location.hash.slice(1)) || "overview";
+  const at = h.startsWith("code/") ? h.lastIndexOf("@") : -1;
+  if (at > 0) sel.tab = h.slice(at + 1);
+  const cur = h.startsWith("code/") ? byId.get(at > 0 ? h.slice(5, at) : h.slice(5)) : null;
+  const tab = h.startsWith("code") ? "code" : tabsDef().some(t => t[0] === h) ? h : "overview";
+  const o = D.overview, main = document.getElementById("main");
+  document.documentElement.lang = lang;
+  document.title = `${D.repo} · rintel`;
+  document.getElementById("repo").textContent = D.repo;
+  document.getElementById("commit").textContent = o.scan.commit ? o.scan.commit.slice(0, 7) : "";
+  document.getElementById("lang").textContent = lang === "ko" ? "English" : "한국어";
+  if (typeof applyTheme === "function") applyTheme();
+  const find = document.getElementById("find");
+  find.placeholder = L("Find symbol", "심볼 찾기"); find.setAttribute("aria-label", find.placeholder);
+  document.getElementById("nav").replaceChildren(...tabsDef().map(([k, t]) => el("button", { role: "tab", "aria-selected": String(k === tab), onclick: () => go(k) }, t)));
+  const view = { overview, metrics: metricsView, deps: depsView, api: apiView, checks: checksView, unresolved: unresolvedView }[tab];
+  main.style.overflow = tab === "code" ? "hidden" : "auto";
+  const keep = [...main.querySelectorAll(".ide > *")].map(n => n.scrollTop);
+  main.replaceChildren(tab === "code" ? codeView(cur) : view());
+  if (tab === "code") [...main.querySelectorAll(".ide > *")].forEach((n, i) => { if (i < 2 && keep[i]) n.scrollTop = keep[i]; });
+  const total = o.resolved_calls + o.unresolved_calls;
+  document.getElementById("foot").replaceChildren(
+    el("span", {}, `${L("scan", "스캔")} #${o.scan.id} · ${D.generated}`),
+    el("span", {}, L(`calls ${fmt(o.resolved_calls)} / ${fmt(total)} resolved (${pct(o.resolved_calls, total)})`, `호출 ${fmt(o.resolved_calls)} / ${fmt(total)} 해석 (${pct(o.resolved_calls, total)})`)),
+    el("span", {}, `${L("inferred", "추정")} ${fmt(o.edges.heuristic || 0)}`),
+    el("span", {}, `${L("unresolved", "미해석")} ${D.unresolved.length}`),
+    ...(o.classpath_jars > 0 ? [el("span", { style: "margin-left:auto" }, `JAR ${o.classpath_jars}`)] : []));
+}
+document.getElementById("find").addEventListener("input", e => { query = e.target.value; if (location.hash.slice(1).startsWith("code")) render(); else go("code"); });
+document.getElementById("lang").addEventListener("click", () => { lang = lang === "ko" ? "en" : "ko"; render(); });
+// theme: follow the system unless the reader chooses; ?theme=light|dark in the address also works
+const themes = ["auto", "light", "dark"];
+let theme = new URLSearchParams(location.search).get("theme") || (() => { try { return localStorage.getItem("rintel-theme"); } catch { return null; } })() || "auto";
+const applyTheme = () => { if (theme === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.setAttribute("data-theme", theme);
+  document.getElementById("theme").textContent = { auto: L("Theme: auto", "테마: 자동"), light: L("Theme: light", "테마: 밝게"), dark: L("Theme: dark", "테마: 어둡게") }[theme] || theme; };
+document.getElementById("theme").addEventListener("click", () => { theme = themes[(themes.indexOf(theme) + 1) % 3]; try { localStorage.setItem("rintel-theme", theme); } catch {} applyTheme(); });
+window.addEventListener("hashchange", () => { render(); });
+render();
+</script>
+</body>
+</html>
