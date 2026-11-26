@@ -4,7 +4,7 @@
 
 코드 저장소를 정적 분석해 "누가 무엇을 호출하고 참조하는가", 구조와 의존성, 코드 지표를 **근거 등급과 함께** 보여주는 로컬 도구입니다. **Java, Go, TypeScript/JavaScript(React, Vue), Python**을 분석합니다.
 
-- 소스는 PC 밖으로 나가지 않습니다. 네트워크를 쓰지 않고, 저장소의 코드나 빌드 도구를 실행하지 않습니다.
+- 소스는 PC 밖으로 나가지 않습니다. 네트워크를 쓰지 않고(직접 켜는 `check --vulns`만 예외), 저장소의 코드나 빌드 도구를 실행하지 않습니다.
 - 확정된 사실과 추정을 구분합니다. 추정에는 항상 사용한 규칙 이름이 붙고, 해석하지 못한 지점은 숨기지 않고 따로 기록합니다.
 - 터미널(CLI), 코딩 에이전트(MCP), 브라우저(HTML 보고서) 세 가지로 씁니다.
 
@@ -22,22 +22,31 @@
 한 저장소에 여러 언어가 섞여 있어도 됩니다. 툴체인이 없는 언어는 경고와 함께 건너뛰고 나머지는 그대로 분석합니다.
 
 ```sh
-go install github.com/spro1/rintel/cmd/rintel@latest   # 또는 소스에서: git clone https://github.com/spro1/rintel && cd rintel && make build
+go install github.com/spro1/rintel/cmd/rintel@latest
 cd <분석할 저장소>
-rintel callers UserService.createUser --depth 2   # 호출하는 곳 (트리)
-rintel callees UserService.createUser             # 호출되는 대상
-rintel refs UserDto                               # 참조하는 모든 곳: 호출, 타입·필드 사용, 주입, 오버라이드
-rintel find User                                  # 심볼 검색
-rintel api --prefix /api                          # REST 엔드포인트
-rintel stats                                      # 해석률, 미해석 사유, 분석 제외 언어
-rintel metrics [class|method|package|file]        # 복잡도·크기·결합도·응집도 (--top N, --tests, --format csv|json)
-rintel deps                                       # 패키지 의존과 순환 (--format dot|mermaid)
-rintel check                                      # 품질 게이트: 경고가 있으면 종료 코드 1 (--format sarif)
-rintel impact --base origin/main                  # 변경의 영향: 호출자, 엔드포인트, 돌릴 테스트
-rintel report --open                              # 분석 결과를 HTML 한 장으로 보기 (브라우저로 열림)
-rintel scan [--full]                              # 인덱스 갱신 (조회 명령이 자동으로 수행). --full은 라이브러리 선택도 처음부터 다시
-rintel doctor                                     # 이 PC에서 분석 가능한 언어 점검
+rintel doctor          # 이 PC에서 분석 가능한 언어 점검
+rintel stats           # 스캔한 뒤 해석률을 보여 줌
+rintel report --open   # HTML 보고서
 ```
+
+소스에서 빌드하려면 `git clone https://github.com/spro1/rintel && cd rintel && make build`를 실행합니다.
+
+| 명령 | 하는 일 |
+|---|---|
+| `rintel callers UserService.createUser --depth 2` | 호출하는 곳 (트리) |
+| `rintel callees UserService.createUser` | 호출되는 대상 |
+| `rintel refs UserDto` | 참조하는 모든 곳: 호출, 타입·필드 사용, 주입, 오버라이드 |
+| `rintel find User` | 심볼 검색 |
+| `rintel api --prefix /api` | REST 엔드포인트 |
+| `rintel stats` | 해석률, 미해석 사유, 분석 제외 언어 |
+| `rintel metrics [class\|method\|package\|file]` | 복잡도·크기·결합도·응집도. `--top N`, `--tests`, `--format csv\|json` |
+| `rintel deps` | 패키지 의존과 순환. `--format dot\|mermaid`로 다이어그램 |
+| `rintel check` | 보안·품질 게이트: 경고가 있으면 종료 코드 1. `--category`, `--vulns`, `--format sarif` |
+| `rintel impact --base origin/main` | 변경의 영향: 호출자, 엔드포인트, 돌릴 테스트 |
+| `rintel report --open` | 분석 결과를 HTML 한 장으로 보기 |
+| `rintel scan [--full]` | 인덱스 갱신 (조회 명령이 자동으로 수행). `--full`은 라이브러리 선택도 처음부터 다시 |
+| `rintel mcp` | MCP 서버 (stdio) |
+| `rintel doctor` | 이 PC에서 분석 가능한 언어 점검 |
 
 - 저장소 안 어느 폴더에서 실행해도 됩니다(git처럼 루트를 찾아 올라갑니다).
 - 인덱스는 `.ri/cache/`에 저장되고, rintel이 `.ri/.gitignore`를 직접 써서 git에서 제외합니다. `git add -A`를 해도 커밋되지 않습니다.
@@ -71,7 +80,7 @@ rintel doctor                                     # 이 PC에서 분석 가능�
 
 | 지표 | 정의 |
 |---|---|
-| CC | 순환 복잡도: 1 + if, 반복문, case, catch, `?:`, `&&`, `||`의 수 |
+| CC | 순환 복잡도: 1 + if, 반복문, case, catch, `?:`, `&&`, `\|\|`의 수 |
 | 중첩 | 제어 구조가 가장 깊게 겹친 단계 |
 | WMC | 클래스의 메서드 CC 합 |
 | CBO | 이 클래스가 참조하거나 이 클래스를 참조하는 저장소 내 다른 클래스 수 |
@@ -126,13 +135,26 @@ FastAPI/Flask의 라우트 데코레이터(`@app.get("/x")`)는 모양으로 인
 
 ### CI 점검
 
-`rintel check`는 규칙 14개를 봅니다. 10개는 **경고**로 빌드를 실패시킵니다: 복잡한·긴·중첩이 깊은·매개변수가 많은 메서드, 큰·결합도가 높은·응집도가 낮은 클래스, 패키지·클래스 순환 의존, 계층 역방향 의존. 4개는 **참고**로 실패시키지 않습니다: 서비스 계층을 건너뛴 컨트롤러, 참조 없는 코드·테스트에서만 쓰는 코드·테스트가 닿지 않는 클래스 후보. 참고는 정적 관계만으로 찾은 것이라 프레임워크·리플렉션·템플릿 호출이 있으면 틀릴 수 있습니다.
+`rintel check`는 규칙 22개를 봅니다. 보안 8개, 품질 14개이고, 선택 사항으로 의존성 조회가 있습니다. `--category security` 또는 `--category quality`로 한쪽만 볼 수 있습니다. 규칙마다 수정 방법이 붙어 있어서(텍스트 출력, JSON, SARIF, MCP 응답 모두) 개발자나 AI 에이전트가 무엇을 바꿔야 하는지 바로 알 수 있습니다.
+
+**보안.** 5개는 경고입니다: 소스에 적힌 비밀값(CWE-798), 문자열로 조립한 SQL(CWE-89), TLS 검증 해제(CWE-295), 코드를 실행할 수 있는 역직렬화(CWE-502), 문자열을 코드로 실행(CWE-95). 3개는 검토할 곳을 알려 주는 참고입니다: 취약한 해시·암호(CWE-327), 외부 명령 실행(CWE-78), 문자열을 HTML로 삽입(CWE-79). 이 규칙들은 소스 한 줄을 텍스트로 대조하므로, 코드를 바꾸기 전에 실제 문제인지 확인하세요. 여러 줄에 걸친 문장은 놓칠 수 있습니다. 결과에는 해당 줄의 내용을 싣지 않으므로 리포트가 비밀값을 퍼뜨리지 않습니다. 비밀값은 git이 추적하는 설정 파일(`.env`, `*.yml`, `*.properties`, `*.toml`, `*.ini`, `*.conf`)에서도 찾습니다. git이 무시하는 `.env`는 비밀값이 있어야 할 자리이므로 건드리지 않습니다.
+
+**취약한 의존성 (기본은 꺼짐).** `rintel check --vulns`는 고정된 의존성 버전을 [osv.dev](https://osv.dev)에서 조회해, 알려진 취약점과 수정된 버전을 알려 줍니다. rintel에서 네트워크를 쓰는 유일한 기능입니다. 패키지 이름과 버전만 보내며, 보내기 전에 그 사실을 출력합니다. `GOPRIVATE`에 해당하는 Go 모듈과 사설 레지스트리의 npm 패키지는 보내지 않습니다. 네트워크가 없으면 다른 점검은 그대로 진행하고, 의존성 검사를 하지 못했다고 알린 뒤 종료 코드 3으로 끝납니다. 검사하지 못한 빌드가 CI를 통과하지 않게 하기 위해서입니다. 읽는 파일은 `go.mod`, `package-lock.json`, `requirements*.txt`, `poetry.lock`, `uv.lock`, 그리고 Maven·Gradle 빌드 파일에 적힌 아티팩트입니다. yarn·pnpm 잠금 파일과 Java의 전이 의존성은 보지 않습니다. 걸렸다는 것은 그 버전이 영향을 받는다는 뜻이지, 취약한 코드가 실제로 실행된다는 뜻은 아닙니다.
+
+**품질.** 10개는 **경고**로 빌드를 실패시킵니다: 복잡한·긴·중첩이 깊은·매개변수가 많은 메서드, 큰·결합도가 높은·응집도가 낮은 클래스, 패키지·클래스 순환 의존, 계층 역방향 의존. 4개는 **참고**로 실패시키지 않습니다: 서비스 계층을 건너뛴 컨트롤러, 참조 없는 코드·테스트에서만 쓰는 코드·테스트가 닿지 않는 클래스 후보. 참고는 정적 관계만으로 찾은 것이라 프레임워크·리플렉션·템플릿 호출이 있으면 틀릴 수 있습니다.
 
 ```sh
-rintel check                                  # 경고가 하나라도 있으면 종료 코드 1
-rintel check --changed-since origin/main      # 이 브랜치가 건드린 파일의 결과만 (기존 코드베이스에 도입할 때)
-rintel check --fail-on never --format sarif > rintel.sarif    # 코드 스캐닝 대시보드용
-rintel impact --base origin/main --format md  # PR 코멘트용 Markdown
+# 경고가 하나라도 있으면 빌드 실패
+rintel check
+
+# 이 브랜치가 건드린 파일의 결과만 (기존 코드베이스에 도입할 때)
+rintel check --changed-since origin/main
+
+# 코드 스캐닝 대시보드용 SARIF
+rintel check --fail-on never --format sarif > rintel.sarif
+
+# PR 코멘트용 Markdown
+rintel impact --base origin/main --format md
 ```
 
 `rintel impact`는 작업 트리를 git 리비전(기본 `HEAD`)과 비교해 줄이 바뀐 심볼을 찾고, 그것에 의존하는 심볼을 `--depth` 단계(기본 3, 최대 6)까지 따라갑니다. 추정 관계를 거친 경로는 추정이라고 표시합니다.
@@ -144,7 +166,10 @@ rintel impact --base origin/main --format md  # PR 코멘트용 Markdown
 ```json
 {
   "exclude": ["**/*.pb.go", "legacy/**"],
-  "thresholds": { "cc": 15, "method_loc": 80, "nesting": 4, "params": 5, "wmc": 50, "class_loc": 500, "cbo": 14, "lcom": 1 },
+  "thresholds": {
+    "cc": 15, "method_loc": 80, "nesting": 4, "params": 5,
+    "wmc": 50, "class_loc": 500, "cbo": 14, "lcom": 1
+  },
   "disable": ["untested-class"]
 }
 ```
@@ -176,6 +201,7 @@ claude mcp add rintel -- /path/to/rintel mcp -C /path/to/repo
 | Go: 호출·타입 사용·인터페이스 구현·임베딩, HTTP 라우트, 복잡도 지표 | 구현 |
 | TypeScript·JavaScript·Vue: 호출(JSX 포함)·타입 사용·상속·오버라이드, Hono/Express 라우트, 복잡도 지표 | 구현 (내장 TypeScript 5.9.3) |
 | Python: 함수·클래스·상속·오버라이드, FastAPI/Flask 라우트, 복잡도 지표 | 구현 (타입 힌트 기반, 나머지는 추정·미해석으로 구분) |
+| 생성된 코드(`build/generated*`, `target/generated-*`, `generated/`, `*.pb.go`, `*_gen.go`, `*.gen.ts`, `*_pb2.py`) | 호출 해석을 위해 분석하되, 테스트 코드처럼 지표·점검·그래프에서는 기본 제외 (`--tests` 또는 보고서의 체크박스로 포함) |
 | Kotlin, C#, Rust 등 | 미착수 — 파일 수를 세어 "분석하지 않은 언어"로 표시 |
 
 코드 안의 `shortcut:` 주석이 의도적으로 단순화한 지점과 교체 시점을 표시합니다.

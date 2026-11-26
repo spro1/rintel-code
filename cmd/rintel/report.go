@@ -14,20 +14,21 @@ import (
 var reportHTML string
 
 type reportData struct {
-	Repo       string         `json:"repo"`
-	Lang       string         `json:"lang"`
-	Generated  string         `json:"generated"`
-	Overview   *Overview      `json:"overview"`
-	Endpoints  []Endpoint     `json:"endpoints"`
-	Files      []string       `json:"files"`
-	Rules      []string       `json:"rules"`
-	Syms       [][]any        `json:"syms"`       // id, type, parent index, file index, line, external, synthetic, kind, role, annotated
-	Edges      [][]any        `json:"edges"`      // src, dst, relation, evidence, rule index, file index, line
-	Unresolved [][]any        `json:"unresolved"` // src, text, reason, file index, line
-	Metrics    *Metrics       `json:"metrics"`
-	Checks     *CheckResult   `json:"checks"`
-	Thresholds Thresholds     `json:"thresholds"`
-	Sources    map[int]string `json:"sources,omitempty"` // file index -> text, only with --source
+	Repo       string               `json:"repo"`
+	Lang       string               `json:"lang"`
+	Generated  string               `json:"generated"`
+	Overview   *Overview            `json:"overview"`
+	Endpoints  []Endpoint           `json:"endpoints"`
+	Files      []string             `json:"files"`
+	Rules      []string             `json:"rules"`
+	Syms       [][]any              `json:"syms"`       // id, type, parent index, file index, line, external, synthetic, kind, role, annotated
+	Edges      [][]any              `json:"edges"`      // src, dst, relation, evidence, rule index, file index, line
+	Unresolved [][]any              `json:"unresolved"` // src, text, reason, file index, line
+	Metrics    *Metrics             `json:"metrics"`
+	Checks     *CheckResult         `json:"checks"`
+	Thresholds Thresholds           `json:"thresholds"`
+	Fixes      map[string][2]string `json:"fixes"`             // rule id -> how to fix it, English and Korean
+	Sources    map[int]string       `json:"sources,omitempty"` // file index -> text, only with --source
 }
 
 // roleOf names the architectural layer a class declares through its stereotype annotation.
@@ -171,6 +172,7 @@ func (q *Q) Report(lang string, withSource bool) ([]byte, error) {
 		return nil, err
 	}
 	d.Thresholds = loadConfig(q.root).Thresholds
+	d.Fixes = ruleFix
 	if withSource { // opt-in: the report then carries the code itself, not only names and locations
 		d.Sources = map[int]string{}
 		for i, f := range d.Files {

@@ -47,8 +47,10 @@ type depsIn struct {
 }
 
 type checksIn struct {
-	Rule  string `json:"rule,omitempty" jsonschema:"only this rule's findings, e.g. complex-method or package-cycle"`
-	Limit int    `json:"limit,omitempty" jsonschema:"findings to return, worst first within each rule; default 100"`
+	Rule            string `json:"rule,omitempty" jsonschema:"only this rule's findings, e.g. sql-concatenation or package-cycle"`
+	Category        string `json:"category,omitempty" jsonschema:"security or quality; empty for both"`
+	Vulnerabilities bool   `json:"vulnerabilities,omitempty" jsonschema:"also look up known vulnerabilities in the pinned dependencies at osv.dev. Uses the network and sends package names and versions; off by default. If dependency_check.error is set in the response the lookup did not run (no network)."`
+	Limit           int    `json:"limit,omitempty" jsonschema:"findings to return, worst first within each rule; default 100"`
 }
 
 type impactIn struct {
@@ -113,18 +115,25 @@ func serveMCP(q *Q) error {
 		})
 	tool(s, "get_dependencies", "Package-level dependency graph with reference counts, and dependency cycles between packages and between classes. Use it for architecture questions.", true,
 		func(in depsIn) (*DepsResult, error) { return q.Deps(in.IncludeTests, in.Detail) })
-	tool(s, "get_checks", "Quality findings: complex or long methods, large or tightly coupled classes, dependency cycles, layering problems, and candidates for unused or untested code. Warnings are rule violations; notes are candidates found with static relations only.", true,
+	tool(s, "get_checks", "Security and quality findings, each rule with a fix: hardcoded secrets, SQL built from strings, disabled TLS verification, unsafe deserialization, eval, weak crypto, command execution and HTML injection (matched on source text: confirm before changing); complex or long methods, large or tightly coupled classes, dependency cycles, layering problems, and candidates for unused or untested code. Warnings are rule violations; notes are candidates found with static relations only.", true,
 		func(in checksIn) (*CheckResult, error) {
 			c, err := q.Checks()
 			if err != nil {
 				return nil, err
 			}
+			if in.Vulnerabilities {
+				q.addVulns(c)
+			}
 			if in.Limit <= 0 {
 				in.Limit = 100
 			}
 			kept := []Finding{}
+			security := map[string]bool{}
+			for _, r := range c.Rules {
+				security[r.ID] = r.Category == "security"
+			}
 			for _, f := range c.Findings {
-				if (in.Rule == "" || f.Rule == in.Rule) && len(kept) < in.Limit {
+				if (in.Rule == "" || f.Rule == in.Rule) && (in.Category == "" || (in.Category == "security") == security[f.Rule]) && len(kept) < in.Limit {
 					kept = append(kept, f)
 				}
 			}

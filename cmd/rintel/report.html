@@ -37,6 +37,9 @@ th .ab { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted
 thead th, tfoot td { background: var(--chrome); border-color: var(--line); font-weight: 600; white-space: nowrap; }
 tbody tr:nth-child(even) { background: var(--alt); }
 .scroll { overflow-x: auto; }
+.sticky th:first-child, .sticky td:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--line); } /* the name stays while the numbers scroll */
+.sticky tbody td:first-child { background: var(--bg); } .sticky tbody tr:nth-child(even) td:first-child { background: var(--alt); }
+.api table { table-layout: fixed; width: 100%; } .api td { overflow-wrap: anywhere; }
 .bar { height: 9px; min-width: 90px; background: var(--track); } .bar i { display: block; height: 100%; background: var(--ok); }
 .guess { background: var(--warnbg); color: var(--warn); padding: 0 4px; white-space: nowrap; }
 .tag { color: var(--muted); font-size: 12px; margin-left: 8px; white-space: nowrap; }
@@ -134,12 +137,16 @@ const muted = (...k) => el("span", { class: "muted" }, k);
 // ---------- model ----------
 // same rule as the core: test directories, Go test files, JS/TS spec files, pytest files
 const TEST_RE = /(^|\/)(src\/)?tests?\/|(^|\/)__tests__\/|(^|\/)e2e\/|_test\.go$|\.(test|spec)\.[cm]?[jt]sx?$|(^|\/)test_[^\/]*\.py$|_test\.py$|(^|\/)conftest\.py$/;
+// same rule as the core: build output kept for type resolution, protobuf and similar generators
+const GEN_RE = /(^|\/)(build|target)\/generated[^\/]*\/|(^|\/)(generated|gen|__generated__)\/|\.pb(\.gw)?\.go$|_gen\.go$|_generated\.go$|\.(gen|generated)\.[cm]?[jt]sx?$|_pb2(_grpc)?\.pyi?$/;
+const off = x => x.test || x.gen || x.generated; // left out by default: test code and generated code
 const S = D.syms.map(([id, type, parent, file, line, ext, synth, kind, role, ann], i) =>
   ({ i, id, type, parent, file, line, ext: !!ext, synth, kind, role, ann: !!ann, out: [], in: [], kids: [], unres: 0, testRefs: 0 }));
 const byId = new Map(S.map(s => [s.id, s]));
 for (const s of S) {
   if (s.parent >= 0) S[s.parent].kids.push(s);
   s.test = s.file >= 0 && TEST_RE.test(D.files[s.file]);
+  s.gen = s.file >= 0 && !s.test && GEN_RE.test(D.files[s.file]); // written by a tool: analyzed, but out of metrics and graphs unless asked for
 }
 for (const s of S) { // top-level class that owns the symbol
   let c = null;
@@ -239,12 +246,12 @@ let withTests = false;
 const cache = {};
 function deps() {
   if (cache[withTests]) return cache[withTests];
-  const cls = classes.filter(c => withTests || !c.test);
+  const cls = classes.filter(c => withTests || !off(c));
   const cd = new Map();
   for (const e of E) {
     if (e.rel === "overrides") continue;
     const a = S[e.s].cls, b = S[e.d].cls;
-    if (!a || !b || a === b || (!withTests && (a.test || b.test))) continue;
+    if (!a || !b || a === b || (!withTests && (off(a) || off(b)))) continue;
     const k = a.i + ">" + b.i;
     let x = cd.get(k);
     if (!x) cd.set(k, x = { a, b, w: 0, kinds: {} });
@@ -381,6 +388,8 @@ function graph(nodes, edges, o = {}) {
     if (o.onNode) { grp.addEventListener("click", () => o.onNode(n)); grp.addEventListener("keydown", k => k.key === "Enter" && o.onNode(n)); }
     g.append(grp);
   }
+  const fit = Math.min(1144, Math.max(320, innerWidth - 60));
+  if (width > fit && width <= fit * 1.4) g.setAttribute("style", "width:100%;height:auto"); // shrink a little rather than cut the last column off
   return el("div", { class: "graph" }, g);
 }
 
@@ -392,14 +401,14 @@ const kinds = k => Object.keys(k).sort().map(n => `${n} ${k[n]}`).join(", ");
 const guess = e => e.ev === "heuristic" && el("span", { class: "guess", title: e.rule }, `${L("inferred", "추정")}: ${e.rule}`);
 const bar = (a, b) => el("div", { class: "bar", role: "img", "aria-label": b ? `${(a / b * 100).toFixed(1)}%` : "-" }, el("i", { style: `width:${b ? a / b * 100 : 0}%` }));
 const pct = (a, b) => b ? (a / b * 100).toFixed(1) + "%" : "–";
-const ratio = (a, b) => el("div", { style: "display:flex;align-items:center;gap:12px" }, el("div", { style: "flex:0 0 120px" }, bar(a, b)), el("span", { style: "white-space:nowrap" }, el("b", {}, pct(a, b)), " ", muted(`${fmt(a)} / ${fmt(b)}`)));
+const ratio = (a, b) => !b ? muted(L("no calls", "호출 없음")) : el("div", { style: "display:flex;align-items:center;gap:12px" }, el("div", { style: "flex:0 0 90px" }, bar(a, b)), el("span", { style: "white-space:nowrap" }, el("b", {}, pct(a, b)), " ", muted(`${fmt(a)} / ${fmt(b)}`)));
 const sel = { pkg: null, edge: null, tab: "in", open: new Set(), openPk: new Set(), reason: "" };
 const roles = ["controller", "service", "repository", "entity"];
 
 function pkgStats() { // resolved/unresolved calls per package, split main/test
   const rows = new Map();
   const get = k => rows.get(k) || rows.set(k, { files: new Set(), classes: 0, methods: 0, calls: 0, unres: 0, eps: 0 }).get(k);
-  const key = s => s.test ? "\u0000test" : s.cls ? s.cls.pkg : null;
+  const key = s => s.test ? "\u0000test" : s.gen ? "\u0000gen" : s.cls ? s.cls.pkg : null;
   for (const s of S) {
     if (s.ext || !s.cls) continue;
     const r = get(key(s));
@@ -415,16 +424,25 @@ function pkgStats() { // resolved/unresolved calls per package, split main/test
 // ---------- 1. overview ----------
 function overview() {
   const o = D.overview, d = deps(), st = pkgStats(), tot = { files: 0, classes: 0, methods: 0, calls: 0, unres: 0, eps: 0 };
-  const row = (k, name) => { const r = st.get(k); if (!r) return null; tot.files += r.files.size; for (const f of ["classes", "methods", "calls", "unres", "eps"]) tot[f] += r[f];
-    return [name, fmt(r.classes), fmt(r.methods), ratio(r.calls, r.calls + r.unres), r.unres ? el("button", { class: "lk", onclick: () => go("unresolved") }, fmt(r.unres)) : "0", fmt(r.eps)]; };
-  const rows = [...pkgNames.map(p => row(p, pkgBtn(p))), row("\u0000test", L("tests", "테스트"))].filter(Boolean);
+  const loc = new Map(M.packages.map(p => [p.name, p.loc])), warn = new Map();
+  for (const f of D.checks.findings) { // warnings per package, so the table says where to look first
+    const x = f.severity === "warning" && byId.get(f.symbol), c = x && x.cls;
+    if (c) warn.set(c.pkg, (warn.get(c.pkg) || 0) + 1);
+  }
+  const row = (k, name, plain) => { const r = st.get(k); if (!r) return null; tot.files += r.files.size; for (const f of ["classes", "methods", "calls", "unres", "eps"]) tot[f] += r[f];
+    const w = warn.get(k) || 0; tot.loc += plain ? 0 : loc.get(k) || 0; tot.warn += w;
+    return [name, fmt(r.classes), fmt(r.methods), plain ? "" : fmt(loc.get(k) || 0), plain ? "" : w ? el("button", { class: "lk over", onclick: () => go("checks") }, fmt(w)) : muted("0"),
+      ratio(r.calls, r.calls + r.unres), r.unres ? el("button", { class: "lk", onclick: () => go("unresolved") }, fmt(r.unres)) : muted("0"), r.eps ? fmt(r.eps) : muted("0")]; };
+  tot.loc = 0; tot.warn = 0;
+  const rows = [...pkgNames.map(p => row(p, pkgBtn(p))), row("\u0000gen", muted(L("generated code", "생성된 코드")), true), row("\u0000test", muted(L("tests", "테스트")), true)].filter(Boolean);
   const hot = d.cls.map(c => [c, d.fin.get(c).size]).filter(x => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const libs = libraries().slice(0, 8);
   return el("div", { class: "page" },
     el("h1", {}, D.repo),
     el("p", {}, `${o.scan.commit ? o.scan.commit.slice(0, 7) : L("no git", "git 없음")} · ${L("scan", "스캔")} #${o.scan.id} · ${o.scan.scanned_at.replace("T", " ").replace("Z", " UTC")}`),
-    table([L("Package", "패키지"), { t: L("Classes", "클래스"), num: 1 }, { t: L("Methods", "메서드"), num: 1 }, L("Calls resolved", "해석된 호출"), { t: L("Unresolved", "미해석"), num: 1 }, { t: "API", num: 1 }], rows,
-      [L("Total", "합계"), fmt(tot.classes), fmt(tot.methods), ratio(tot.calls, tot.calls + tot.unres), fmt(tot.unres), fmt(tot.eps)]),
+    table([L("Package", "패키지"), { t: L("Classes", "클래스"), num: 1 }, { t: L("Methods", "메서드"), num: 1 }, { t: L("Lines", "줄 수"), num: 1 }, { t: L("Warnings", "경고"), num: 1 }, L("Calls resolved", "해석된 호출"), { t: L("Unresolved", "미해석"), num: 1 }, { t: L("Endpoints", "엔드포인트"), num: 1 }], rows,
+      [L("Total", "합계"), fmt(tot.classes), fmt(tot.methods), fmt(tot.loc), fmt(tot.warn), ratio(tot.calls, tot.calls + tot.unres), fmt(tot.unres), fmt(tot.eps)]),
+    el("p", { class: "note" }, L("Lines and warnings count hand-written production code. Warnings are rule violations from Checks; a package cycle is not attributed to one package.", "줄 수와 경고는 사람이 쓴 운영 코드 기준입니다. 경고는 점검의 규칙 위반 건수이며, 패키지 순환은 특정 패키지에 넣지 않습니다.")),
     el("p", { class: "note" }, L(`${fmt(E.length)} relations, ${fmt(o.edges.heuristic || 0)} of them inferred.`, `관계 ${fmt(E.length)}건, 그중 추정 ${fmt(o.edges.heuristic || 0)}건.`), o.classpath_jars > 0 && L(` Classpath: ${o.classpath_jars} jars.`, ` 클래스패스 JAR ${o.classpath_jars}개.`),
       Object.keys(o.excluded_files).length > 0 && el("b", {}, L(" Not analyzed: ", " 분석하지 않은 언어: "), Object.keys(o.excluded_files).sort().map(k => `${k} ${o.excluded_files[k]}`).join(", "), ".")),
     MISSING(),
@@ -456,7 +474,7 @@ function libraries() {
   const m = new Map();
   for (const e of E) {
     const t = S[e.d], c = S[e.s].cls;
-    if (!t.ext || !c || c.test) continue;
+    if (!t.ext || !c || off(c)) continue;
     const n = lib(t.id);
     if (/^(java|javax|jdk|com\.sun|sun)\./.test(n + ".") || n === "std" || n === "builtin") continue; // the JDK and the Go standard library are not dependencies worth listing
     const x = m.get(n) || m.set(n, { name: n, classes: new Set(), refs: 0 }).get(n);
@@ -483,7 +501,7 @@ function squarify(items, x, y, w, h) { // squarified treemap (Bruls et al.); ite
   return out;
 }
 function treemap() {
-  const cs = M.classes.filter(c => (withTests || !c.test) && c.loc > 0), W = 1130, H = 380;
+  const cs = M.classes.filter(c => (withTests || !off(c)) && c.loc > 0), W = 1130, H = 380;
   if (!cs.length) return null;
   const groups = new Map();
   for (const c of cs) (groups.get(c.package) || groups.set(c.package, []).get(c.package)).push(c);
@@ -533,9 +551,9 @@ const ms = { scope: "class", sort: {}, filter: "" };
 function metricsView() {
   const sc = scopes(), [key, dir] = ms.sort[ms.scope] || [sc.sort, -1], q = ms.filter.trim().toLowerCase();
   const nameOf = r => r.id ? short(r.id) : r.name != null ? plabel(r.name) : r.path;
-  let rows = sc.list().filter(r => (withTests || !r.test) && (!q || nameOf(r).toLowerCase().includes(q)));
+  let rows = sc.list().filter(r => (withTests || !off(r)) && (!q || nameOf(r).toLowerCase().includes(q)));
   rows = [...rows].sort((a, b) => { const x = a[key], y = b[key]; return (typeof x === "number" ? x - y : nameOf(a).localeCompare(nameOf(b))) * dir; });
-  const files = M.files.filter(f => withTests || !f.test), methods = M.methods.filter(m => withTests || !m.test);
+  const files = M.files.filter(f => withTests || !off(f)), methods = M.methods.filter(m => withTests || !off(m));
   const sum = k => files.reduce((a, f) => a + f[k], 0), avg = methods.length ? (methods.reduce((a, m) => a + m.cc, 0) / methods.length).toFixed(2) : "–";
   const chip = (k, t) => el("button", { class: "btn", "aria-pressed": String(ms.scope === k), style: ms.scope === k ? "font-weight:600;border-color:var(--ink)" : null, onclick: () => { ms.scope = k; render(); } }, t);
   const filter = el("input", { type: "search", placeholder: L("filter by name", "이름으로 거르기"), "aria-label": L("filter by name", "이름으로 거르기"), value: ms.filter, style: "width:200px" });
@@ -548,8 +566,8 @@ function metricsView() {
       `코드 ${fmt(sum("code"))}줄, 주석 ${fmt(sum("comment"))}줄, 빈 줄 ${fmt(sum("blank"))}줄 · 메서드 ${fmt(methods.length)}개, 평균 복잡도 ${avg}, 최고 ${methods.reduce((a, m) => Math.max(a, m.cc), 0)}`)),
     treemap(),
     el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:22px 0 8px" }, chip("class", L("Classes", "클래스")), chip("method", L("Methods", "메서드")), chip("package", L("Packages", "패키지")), chip("file", L("Files", "파일")),
-      filter, el("label", { style: "margin-left:6px" }, test, " ", L("include test code", "테스트 코드 포함")), muted(`${fmt(rows.length)} ${L("rows", "행")}`)),
-    el("div", { class: "scroll" }, el("table", {},
+      filter, el("label", { style: "margin-left:6px" }, test, " ", L("include test and generated code", "테스트·생성 코드 포함")), muted(`${fmt(rows.length)} ${L("rows", "행")}`)),
+    el("div", { class: "scroll sticky" }, el("table", {},
       el("thead", {}, el("tr", {}, sc.cols.map(([k, t, ab], i) => el("th", { class: "s" + (i ? " num" : ""), tabindex: 0, "aria-sort": k === key ? (dir < 0 ? "descending" : "ascending") : null, onclick: () => { ms.sort[ms.scope] = [k, k === key ? -dir : i ? -1 : 1]; render(); } }, t, k === key ? (dir < 0 ? " ▼" : " ▲") : "", ab && el("span", { class: "ab" }, ab))))),
       el("tbody", {}, rows.slice(0, 500).map(r => el("tr", {}, sc.cols.map(([k, , , th], i) => el("td", { class: i ? "num" + (th != null && r[k] > th ? " over" : "") : null, style: i ? null : "white-space:nowrap" }, cell(r, k)))))))),
     el("p", { class: "note" }, el("span", { class: "over" }, L("Red", "빨간 숫자")), L(" = above the check threshold. Click a column title to sort.", " = 점검 기준 초과. 열 제목을 누르면 정렬됩니다.")),
@@ -579,7 +597,7 @@ function depsView() {
   const rg = roleGraph(d);
   return el("div", { class: "page" },
     el("h1", {}, L("Dependencies", "의존성")),
-    el("p", {}, el("label", {}, (() => { const c = el("input", { type: "checkbox" }); c.checked = withTests; c.addEventListener("change", () => { withTests = c.checked; sel.edge = sel.pkg = null; render(); }); return c; })(), " ", L("include test code", "테스트 코드 포함"))),
+    el("p", {}, el("label", {}, (() => { const c = el("input", { type: "checkbox" }); c.checked = withTests; c.addEventListener("change", () => { withTests = c.checked; sel.edge = sel.pkg = null; render(); }); return c; })(), " ", L("include test and generated code", "테스트·생성 코드 포함"))),
     pkgGraph(d, p => { sel.pkg = sel.pkg === p ? null : p; sel.edge = null; render(); }, e => { sel.edge = sel.edge === e.key ? null : e.key; sel.pkg = null; render(); }),
     d.P.size > 1 && [el("p", { class: "note" }, L("Arrow = depends on. Red dashed arrows are part of a cycle.", "화살표 = 의존 방향. 빨간 점선은 순환에 포함된 의존입니다.")), detail()],
     (() => { const one = sel.pkg || (d.P.size === 1 ? [...d.P.keys()][0] : null); return one && d.P.get(one) ? inside(d, one) : null; })(),
@@ -654,10 +672,10 @@ function codeView(cur) {
   } else {
     tree.append(el("div", { class: "hd" }, L("Packages", "패키지")));
     for (const p of pkgNames) {
-      const cs = classes.filter(c => c.pkg === p).sort((a, b) => a.test - b.test || short(a.id).localeCompare(short(b.id))), open = sel.openPk.has(p);
+      const cs = classes.filter(c => c.pkg === p).sort((a, b) => off(a) - off(b) || short(a.id).localeCompare(short(b.id))), open = sel.openPk.has(p);
       tree.append(el("button", { class: "row", "aria-expanded": String(open), onclick: () => { open ? sel.openPk.delete(p) : sel.openPk.add(p); render(); } }, el("span", { class: "k" }, open ? "▾" : "▸"), plabel(p), el("span", { class: "c" }, cs.length)));
       if (open) for (const c of cs) tree.append(el("button", { class: "row", style: "padding-left:32px", "aria-current": c === cls ? "true" : null, onclick: () => go("code/" + encodeURIComponent(c.id)) },
-        el("span", { class: "k", title: c.kind }, { interface: "I", enum: "E", record: "R", struct: "S", file: "F", type: "T" }[c.kind] || "C"), inPkg(c), c.test && el("span", { class: "tag" }, L("test", "테스트"))));
+        el("span", { class: "k", title: c.kind }, { interface: "I", enum: "E", record: "R", struct: "S", file: "F", type: "T" }[c.kind] || "C"), inPkg(c), c.gen && el("span", { class: "tag" }, L("generated", "생성됨")), c.test && el("span", { class: "tag" }, L("test", "테스트"))));
     }
   }
   const mid = el("section", { "aria-label": L("members", "멤버") });
@@ -829,19 +847,27 @@ function apiView() {
   const groups = new Map(), hasRepos = classes.some(c => c.role === "repository");
   for (const e of D.endpoints) { const h = byId.get(e.handler), c = h && h.cls; const k = c ? c.id : "?"; (groups.get(k) || groups.set(k, { c, es: [] }).get(k)).es.push({ e, h }); }
   return el("div", { class: "page" }, el("h1", {}, L("REST endpoints", "REST 엔드포인트"), " ", muted(D.endpoints.length)),
-    el("p", {}, L("Read from mapping annotations (Spring) and router registrations (Go).", "매핑 어노테이션(Spring)과 라우터 등록 코드(Go)에서 읽은 값입니다."), hasRepos ? L(" \"Reaches\" lists the repositories the handler gets to through calls, up to 5 hops.", " \"닿는 저장소\"는 핸들러에서 호출을 따라 5단계 안에 도달하는 저장소입니다.") : ""),
+    el("p", {}, L("Read from mapping annotations and route registrations in the code.", "코드의 매핑 어노테이션과 라우트 등록에서 읽은 값입니다."), hasRepos ? L(" \"Reaches\" lists the repositories the handler gets to through calls, up to 5 hops.", " \"닿는 저장소\"는 핸들러에서 호출을 따라 5단계 안에 도달하는 저장소입니다.") : ""),
     [...groups.values()].sort((a, b) => b.es.length - a.es.length).map(g => [
-      el("h2", {}, g.c ? symBtn(g.c) : "?", " ", muted(g.es.length), g.c && el("span", { class: "tag mono" }, fname(g.c.file))),
-      table([{ t: L("Method", "메서드"), w: "70px" }, L("Path", "경로"), L("Handler", "핸들러"), { t: L("Line", "줄"), num: 1 }, ...(hasRepos ? [L("Reaches", "닿는 저장소")] : [])],
+      el("h2", {}, g.c ? symBtn(g.c) : "?", el("span", { class: "tag" }, L(`${g.es.length} endpoint${g.es.length > 1 ? "s" : ""}`, `엔드포인트 ${g.es.length}개`)), g.c && el("span", { class: "tag mono" }, fname(g.c.file))),
+      el("div", { class: "api" }, table([{ t: L("Method", "메서드"), w: "84px" }, { t: L("Path", "경로"), w: hasRepos ? "24%" : "38%" }, { t: L("Handler", "핸들러"), w: hasRepos ? "30%" : null }, { t: L("Line", "줄"), num: 1, w: "64px" }, ...(hasRepos ? [L("Reaches", "닿는 저장소")] : [])],
         g.es.sort((a, b) => a.e.path.localeCompare(b.e.path) || a.e.method.localeCompare(b.e.method)).map(({ e, h }) => {
           const r = h ? reach(h) : [];
           const row = [mono(e.method), mono(e.path), h ? symBtn(h, member(h)) : short(e.handler), e.location ? e.location.start_line : h ? h.line : ""];
           return hasRepos ? [...row, r.length ? r.map((c, i) => [i ? ", " : "", symBtn(c)]) : muted("–")] : row;
-        }))]));
+        })))]));
 }
 
 // ---------- 5. checks: computed by the core (the same results `rintel check` and the MCP tool give) ----------
 const RULES = () => ({ // id: [title, what it means]; a function so the texts follow the language switch
+  "hardcoded-secret": [L("Secrets in the source", "소스에 적힌 비밀값"), L("A password, key or token is written as a literal. Found by text pattern; the value itself is not shown here.", "비밀번호·키·토큰이 리터럴로 적혀 있습니다. 텍스트 패턴으로 찾았으며, 값 자체는 여기 표시하지 않습니다.")],
+  "sql-concatenation": [L("SQL built from strings", "문자열로 조립한 SQL"), L("A statement is joined with values instead of using bound parameters: SQL injection if a value comes from outside.", "바인딩 파라미터 대신 값을 이어 붙여 SQL을 만듭니다. 값이 외부에서 오면 SQL 인젝션이 됩니다.")],
+  "tls-verification-disabled": [L("TLS verification off", "TLS 검증 해제"), L("The certificate or host name is not checked, so the connection can be intercepted.", "인증서나 호스트 이름을 확인하지 않아 연결을 가로챌 수 있습니다.")],
+  "unsafe-deserialization": [L("Unsafe deserialization", "위험한 역직렬화"), L("The loader can run code contained in its input.", "입력에 담긴 코드를 실행할 수 있는 로더입니다.")],
+  "dynamic-code": [L("Strings run as code", "문자열을 코드로 실행"), L("eval, exec or new Function.", "eval, exec, new Function 사용.")],
+  "weak-crypto": [L("Broken hash or cipher (review)", "취약한 해시·암호 (검토)"), L("MD5, SHA-1, DES, RC4 or ECB. A problem when used for security, harmless for plain checksums.", "MD5, SHA-1, DES, RC4, ECB. 보안 용도면 문제이고 단순 체크섬이면 무해합니다.")],
+  "command-execution": [L("External commands (review)", "외부 명령 실행 (검토)"), L("A process is started. A problem only if outside input reaches the command.", "프로세스를 실행합니다. 외부 입력이 명령에 들어갈 때만 문제입니다.")],
+  "html-injection": [L("HTML from strings (review)", "문자열을 HTML로 삽입 (검토)"), L("innerHTML, v-html and the like. Cross-site scripting if the string is not trusted.", "innerHTML, v-html 등. 신뢰할 수 없는 문자열이면 XSS가 됩니다.")],
   "complex-method": [L("Complex methods", "복잡한 메서드"), L("Many branches: hard to test every path.", "분기가 많아 모든 경로를 테스트하기 어렵습니다.")],
   "long-method": [L("Long methods", "긴 메서드"), L("Too many lines for one method.", "한 메서드에 줄이 너무 많습니다.")],
   "deep-nesting": [L("Deep nesting", "깊은 중첩"), L("if, loops and the like nested too deep.", "if·반복문 등이 너무 깊게 겹쳤습니다.")],
@@ -881,7 +907,8 @@ function checksView() {
       muted(r.severity === "warning" ? L("warning", "경고") : L("note", "참고")),
       muted(ruleText(r.id)[1], r.threshold > 0 ? L(` Limit: ${r.threshold}.`, ` 기준: ${r.threshold}.`) : "")])),
     el("p", { class: "note" }, L(`${hit.length} of ${c.rules.length} checks found something. Details follow, in the same order.`, `${c.rules.length}개 항목 중 ${hit.length}개에서 발견됐습니다. 아래에 같은 순서로 자세한 내용이 이어집니다.`)),
-    c.rules.map((r, i) => r.count > 0 && [el("h2", { id: "chk" + i }, ruleText(r.id)[0], " ", muted(fmt(r.count))), el("p", {}, ruleText(r.id)[1]), body(r),
+    c.rules.map((r, i) => r.count > 0 && [el("h2", { id: "chk" + i }, ruleText(r.id)[0], " ", muted(fmt(r.count))), el("p", {}, ruleText(r.id)[1], r.cwe ? muted(` ${r.cwe}`) : ""),
+      D.fixes[r.id] && el("p", {}, el("b", {}, L("How to fix: ", "수정 방법: ")), L(D.fixes[r.id][0], D.fixes[r.id][1])), body(r),
       (by.get(r.id) || []).length > 300 && el("p", { class: "note" }, L("Showing the first 300; `rintel check --format json` has all.", "앞의 300건만 표시합니다. 전체는 `rintel check --format json`으로 볼 수 있습니다."))]));
 }
 

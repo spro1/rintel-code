@@ -47,9 +47,10 @@ func usage() string {
   rintel find <name>                    search classes, methods, fields
   rintel api [--prefix /path]           REST endpoints
   rintel stats                          how much of the code was resolved, and what was not
-  rintel metrics [class|method|package|file]   complexity, size, coupling, cohesion (--top N, --tests, --format csv)
+  rintel metrics [class|method|package|file]   complexity, size, coupling, cohesion (--top N, --tests to include test and generated code, --format csv)
   rintel deps                           package dependencies and cycles (--format dot|mermaid for a diagram)
-  rintel check                          quality gate for CI: exits 1 on warnings (--fail-on, --changed-since, --format sarif)
+  rintel check                          quality gate for CI: exits 1 on warnings (--fail-on, --changed-since, --category security|quality, --format sarif)
+                                        --vulns also looks up known vulnerabilities in dependencies (uses the network: osv.dev)
   rintel impact [--base REF]            what a change affects: callers, endpoints, tests to run (--format md for a PR comment)
   rintel report [--open] [--out file] [--source]   one self-contained HTML page: metrics, graphs, checks, explorer
   rintel scan [--full]                  refresh the index (queries do this automatically)
@@ -71,9 +72,10 @@ exit codes: 0 ok, 1 symbol not found or check failed, 2 usage error, 3 analysis 
   rintel find <이름>                    클래스·메서드·필드 검색
   rintel api [--prefix /path]           REST 엔드포인트
   rintel stats                          해석된 비율과 해석하지 못한 항목
-  rintel metrics [class|method|package|file]   복잡도·크기·결합도·응집도 지표 (--top N, --tests, --format csv)
+  rintel metrics [class|method|package|file]   복잡도·크기·결합도·응집도 지표 (--top N, --tests는 테스트·생성 코드 포함, --format csv)
   rintel deps                           패키지 의존과 순환 (--format dot|mermaid로 다이어그램)
-  rintel check                          CI 품질 게이트: 경고가 있으면 종료 코드 1 (--fail-on, --changed-since, --format sarif)
+  rintel check                          CI 품질 게이트: 경고가 있으면 종료 코드 1 (--fail-on, --changed-since, --category security|quality, --format sarif)
+                                        --vulns: 의존성의 알려진 취약점도 조회 (네트워크 사용: osv.dev)
   rintel impact [--base REF]            변경의 영향: 호출자, 엔드포인트, 돌릴 테스트 (--format md는 PR 코멘트용)
   rintel report [--open] [--out 파일] [--source]   HTML 한 장으로 보기: 지표, 그래프, 점검, 탐색
   rintel scan [--full]                  인덱스 갱신 (조회 명령이 자동으로 수행)
@@ -150,6 +152,8 @@ func main() {
 	base := fs.String("base", "HEAD", "")
 	failOn := fs.String("fail-on", "warning", "")
 	since := fs.String("changed-since", "", "")
+	vulns := fs.Bool("vulns", false, "")
+	category := fs.String("category", "", "")
 	var pos []string // flags may come anywhere: before the command, or before or after its argument
 	for args := os.Args[1:]; len(args) > 0; {
 		if err := fs.Parse(args); err != nil {
@@ -389,16 +393,24 @@ func main() {
 		if err != nil {
 			die(3, err)
 		}
-		if *since != "" { // a legacy code base: hold only the files this branch touched to the rules
-			ranges, _, err := changedLines(*root, *since)
-			if err != nil {
-				die(3, err)
+		if *vulns {
+			// The only network use in rintel, so say so before it happens.
+			fmt.Fprintln(os.Stderr, tr("Looking up dependency versions at osv.dev: package names and versions are sent over the network.",
+				"osv.dev에서 의존성 버전을 조회합니다. 패키지 이름과 버전이 네트워크로 전송됩니다."))
+			q.addVulns(c)
+			if d := c.Dependencies; d != nil && d.Error != "" {
+				fmt.Fprintf(os.Stderr, tr("Dependency check NOT done: osv.dev could not be reached (%s).\nCheck the network or proxy (HTTPS_PROXY), or run without --vulns. The other checks below are complete.\n",
+					"의존성 검사를 하지 못했습니다: osv.dev에 연결할 수 없습니다 (%s).\n네트워크나 프록시(HTTPS_PROXY)를 확인하거나 --vulns 없이 실행하세요. 아래의 다른 점검은 정상 완료됐습니다.\n"), d.Error)
+			} else if d != nil {
+				fmt.Fprintf(os.Stderr, tr("Network ok: %d dependency versions checked.\n", "네트워크 정상: 의존성 버전 %d개를 확인했습니다.\n"), d.Packages)
 			}
+		}
+		keep := func(ok func(Finding) bool) { // narrow the result and recount
 			kept := c.Findings[:0]
 			count := map[string]int{}
 			c.Warnings, c.Notes = 0, 0
 			for _, f := range c.Findings {
-				if _, ok := ranges[f.File]; !ok {
+				if !ok(f) {
 					continue
 				}
 				kept = append(kept, f)
@@ -414,6 +426,28 @@ func main() {
 				c.Rules[i].Count = count[c.Rules[i].ID]
 			}
 		}
+		if *category != "" {
+			if *category != "security" && *category != "quality" {
+				usageErr(fmt.Sprintf(tr("unsupported --category %q (use security or quality)", "지원하지 않는 --category %q (security, quality)"), *category))
+			}
+			in := map[string]bool{}
+			rules := c.Rules[:0]
+			for _, r := range c.Rules {
+				if r.Category == *category {
+					in[r.ID] = true
+					rules = append(rules, r)
+				}
+			}
+			c.Rules = rules
+			keep(func(f Finding) bool { return in[f.Rule] })
+		}
+		if *since != "" { // a legacy code base: hold only the files this branch touched to the rules
+			ranges, _, err := changedLines(*root, *since)
+			if err != nil {
+				die(3, err)
+			}
+			keep(func(f Finding) bool { _, ok := ranges[f.File]; return ok })
+		}
 		switch *format {
 		case "json":
 			printJSON(c)
@@ -425,6 +459,9 @@ func main() {
 		}
 		if (*failOn == "warning" && c.Warnings > 0) || (*failOn == "note" && c.Warnings+c.Notes > 0) {
 			os.Exit(1)
+		}
+		if c.Dependencies != nil && c.Dependencies.Error != "" { // asked for and not done: a gate must not pass on that
+			os.Exit(3)
 		}
 		return
 	case "impact":

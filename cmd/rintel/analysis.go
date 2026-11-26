@@ -18,6 +18,7 @@ type gnode struct {
 	kind, role, synthetic string
 	annotated, abstract   bool
 	public                bool
+	gen                   bool   // generated code: not held to the checks, not drawn by default
 	top                   *gnode // outermost class (Go/TS/Python: named type or file container)
 	in, out               []*gedge
 }
@@ -55,7 +56,7 @@ func (q *Q) loadGraph(scan int64) (*graph, error) {
 				n.annotated = true
 			}
 		}
-		n.test = testPath.MatchString(n.file)
+		n.test, n.gen = testPath.MatchString(n.file), generatedPath.MatchString(n.file)
 		g.nodes[n.id] = n
 		g.order = append(g.order, n)
 	}
@@ -157,13 +158,13 @@ type classGraph struct {
 func (g *graph) classDeps(tests bool) *classGraph {
 	cg := &classGraph{dep: map[[2]*gnode]int{}}
 	for _, n := range g.order {
-		if !n.ext && n.typ == "class" && n.top == n && (tests || !n.test) {
+		if !n.ext && n.typ == "class" && n.top == n && (tests || !(n.test || n.gen)) {
 			cg.classes = append(cg.classes, n)
 		}
 	}
 	for _, e := range g.edges {
 		a, b := e.src.top, e.dst.top
-		if e.rel == "overrides" || a == nil || b == nil || a == b || (!tests && (a.test || b.test)) {
+		if e.rel == "overrides" || a == nil || b == nil || a == b || (!tests && (a.test || b.test || a.gen || b.gen)) {
 			continue
 		}
 		cg.dep[[2]*gnode{a, b}]++
@@ -310,6 +311,7 @@ type Finding struct {
 	File      string  `json:"file,omitempty"`
 	Line      int     `json:"line,omitempty"`
 	Message   string  `json:"message"`
+	CWE       string  `json:"cwe,omitempty"`
 	Value     float64 `json:"value,omitempty"`
 	Threshold float64 `json:"threshold,omitempty"`
 }
@@ -318,16 +320,20 @@ type RuleSummary struct {
 	ID        string  `json:"id"`
 	Severity  string  `json:"severity"`
 	Title     string  `json:"title"`
+	Category  string  `json:"category" jsonschema:"security or quality"`
+	CWE       string  `json:"cwe,omitempty"`
+	Fix       string  `json:"fix,omitempty" jsonschema:"how to fix what this rule reports"`
 	Count     int     `json:"count"`
 	Threshold float64 `json:"threshold,omitempty"`
 }
 
 type CheckResult struct {
-	Scan     ScanInfo      `json:"scan"`
-	Rules    []RuleSummary `json:"rules" jsonschema:"every enabled rule with how many findings it produced"`
-	Findings []Finding     `json:"findings" jsonschema:"production code only; grouped by rule, worst first"`
-	Warnings int           `json:"warnings"`
-	Notes    int           `json:"notes"`
+	Scan         ScanInfo      `json:"scan"`
+	Rules        []RuleSummary `json:"rules" jsonschema:"every enabled rule with how many findings it produced"`
+	Findings     []Finding     `json:"findings" jsonschema:"production code only; grouped by rule, worst first"`
+	Dependencies *DepCheck     `json:"dependency_check,omitempty" jsonschema:"present when known vulnerabilities in dependencies were looked up"`
+	Warnings     int           `json:"warnings"`
+	Notes        int           `json:"notes"`
 }
 
 // Thresholds are the defaults; .ri/config.json can change them.
@@ -345,26 +351,37 @@ type Thresholds struct {
 var defaultThresholds = Thresholds{CC: 10, MethodLOC: 60, Nesting: 4, Params: 5, WMC: 50, ClassLOC: 500, CBO: 14, LCOM: 1}
 
 var ruleTitles = map[string]string{
-	"complex-method":      "Method with high cyclomatic complexity",
-	"long-method":         "Long method",
-	"deep-nesting":        "Deeply nested control flow",
-	"many-parameters":     "Method with many parameters",
-	"large-class":         "Large class",
-	"high-coupling":       "Class coupled to many others",
-	"low-cohesion":        "Class doing unrelated things",
-	"package-cycle":       "Package dependency cycle",
-	"class-cycle":         "Class dependency cycle",
-	"layer-violation":     "Lower layer depending on a higher one",
-	"layer-skip":          "Controller using a repository directly",
-	"unreferenced-method": "Method nothing references (candidate)",
-	"test-only-code":      "Production code only tests use (candidate)",
-	"untested-class":      "Class no test touches (candidate)",
+	"vulnerable-dependency":     "Dependency version with a known vulnerability",
+	"hardcoded-secret":          "Password, key or token written in the source",
+	"sql-concatenation":         "SQL built by joining strings",
+	"tls-verification-disabled": "TLS certificate verification switched off",
+	"unsafe-deserialization":    "Deserialization that can run code",
+	"dynamic-code":              "String run as code",
+	"weak-crypto":               "Broken hash or cipher (review)",
+	"command-execution":         "External command started (review)",
+	"html-injection":            "String put into the page as HTML (review)",
+	"complex-method":            "Method with high cyclomatic complexity",
+	"long-method":               "Long method",
+	"deep-nesting":              "Deeply nested control flow",
+	"many-parameters":           "Method with many parameters",
+	"large-class":               "Large class",
+	"high-coupling":             "Class coupled to many others",
+	"low-cohesion":              "Class doing unrelated things",
+	"package-cycle":             "Package dependency cycle",
+	"class-cycle":               "Class dependency cycle",
+	"layer-violation":           "Lower layer depending on a higher one",
+	"layer-skip":                "Controller using a repository directly",
+	"unreferenced-method":       "Method nothing references (candidate)",
+	"test-only-code":            "Production code only tests use (candidate)",
+	"untested-class":            "Class no test touches (candidate)",
 }
 
-var ruleOrder = []string{"complex-method", "long-method", "deep-nesting", "many-parameters", "large-class", "high-coupling", "low-cohesion",
+var ruleOrder = []string{"hardcoded-secret", "sql-concatenation", "tls-verification-disabled", "unsafe-deserialization", "dynamic-code",
+	"weak-crypto", "command-execution", "html-injection", "complex-method", "long-method", "deep-nesting", "many-parameters", "large-class", "high-coupling", "low-cohesion",
 	"package-cycle", "class-cycle", "layer-violation", "layer-skip", "unreferenced-method", "test-only-code", "untested-class"}
 
-var noteRules = map[string]bool{"unreferenced-method": true, "test-only-code": true, "untested-class": true, "layer-skip": true}
+// Security notes are places to review: the call is legitimate in itself and only wrong with outside input or a security use.
+var noteRules = map[string]bool{"weak-crypto": true, "command-execution": true, "html-injection": true, "unreferenced-method": true, "test-only-code": true, "untested-class": true, "layer-skip": true}
 
 var (
 	accessorName = regexp.MustCompile(`^(get|set|is)[A-Z]`)
@@ -405,7 +422,7 @@ func (q *Q) Checks() (*CheckResult, error) {
 	}
 
 	for _, x := range m.Methods {
-		if x.Test {
+		if x.Test || x.Generated {
 			continue
 		}
 		name := short(x.ID)
@@ -423,7 +440,7 @@ func (q *Q) Checks() (*CheckResult, error) {
 		}
 	}
 	for _, c := range m.Classes {
-		if c.Test {
+		if c.Test || c.Generated {
 			continue
 		}
 		name := short(c.ID)
@@ -489,7 +506,7 @@ func (q *Q) Checks() (*CheckResult, error) {
 		}
 	}
 	for _, n := range g.order {
-		if n.ext || n.test || n.top == nil {
+		if n.ext || n.test || n.gen || n.top == nil {
 			continue
 		}
 		switch {
@@ -533,6 +550,51 @@ func (q *Q) Checks() (*CheckResult, error) {
 		}
 	}
 
+	cwe := map[string]string{}
+	for _, sr := range securityRules {
+		cwe[sr.id] = sr.cwe
+	}
+	var paths []string
+	rows, err := q.db.Query(`SELECT path FROM files WHERE scan_id=? ORDER BY path`, si.ID)
+	if err != nil {
+		return nil, err
+	}
+	for rows.Next() {
+		var p string
+		rows.Scan(&p)
+		paths = append(paths, p)
+	}
+	rows.Close()
+	inFile := map[string][]*gnode{}
+	for _, n := range g.order {
+		if !n.ext && n.l1 > 0 && n.typ != "file" {
+			inFile[n.file] = append(inFile[n.file], n)
+		}
+	}
+	for _, rel := range repoFiles(q.root) { // settings files are not in the index, and leak secrets more often than code does
+		if secLang(rel) == "conf" && !cfg.excluded(rel) {
+			paths = append(paths, rel)
+		}
+	}
+	for _, f := range securityFindings(q.root, paths) {
+		var in *gnode // the innermost symbol around the line, so the finding can be followed to its callers
+		for _, n := range inFile[f.File] {
+			if n.l1 <= f.Line && f.Line <= n.l2 && (in == nil || n.l2-n.l1 <= in.l2-in.l1) {
+				in = n
+			}
+		}
+		if in != nil {
+			f.Symbol = in.id
+			f.Message = short(in.id) + ": " + f.Message
+		}
+		f.CWE = cwe[f.Rule]
+		f.Severity = "warning"
+		if noteRules[f.Rule] {
+			f.Severity = "note"
+		}
+		by[f.Rule] = append(by[f.Rule], f)
+	}
+
 	off := map[string]bool{}
 	for _, id := range cfg.Disable {
 		off[id] = true
@@ -552,7 +614,11 @@ func (q *Q) Checks() (*CheckResult, error) {
 		} else {
 			r.Warnings += len(fs)
 		}
-		r.Rules = append(r.Rules, RuleSummary{ID: id, Severity: sev, Title: ruleTitles[id], Count: len(fs), Threshold: limit[id]})
+		cat := "quality"
+		if cwe[id] != "" {
+			cat = "security"
+		}
+		r.Rules = append(r.Rules, RuleSummary{ID: id, Severity: sev, Title: ruleTitles[id], Category: cat, CWE: cwe[id], Fix: ruleFix[id][0], Count: len(fs), Threshold: limit[id]})
 		r.Findings = append(r.Findings, fs...)
 	}
 	return r, nil

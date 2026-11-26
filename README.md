@@ -17,7 +17,7 @@ It reads **Java, Go, TypeScript / JavaScript (React, Vue) and Python**, and it t
 
 ## Why another one
 
-- **Nothing leaves the machine and nothing from the repository runs.** No network access, no build tool, no annotation processor, no `go list`, nothing from `node_modules`, no Python import. It is safe to point at code you do not trust.
+- **Nothing leaves the machine and nothing from the repository runs.** No network access (the one exception is `check --vulns`, which you switch on yourself), no build tool, no annotation processor, no `go list`, nothing from `node_modules`, no Python import. It is safe to point at code you do not trust.
 - **Every relation carries its evidence.** A fact read from the code is unmarked. An inference names the rule that produced it. A place analysis could not see through is recorded as *unresolved* with a reason, so an empty answer can be told apart from a blind spot.
 - **One index, three ways in:** a CLI, an [MCP](https://modelcontextprotocol.io) server for coding agents, and a self-contained HTML report.
 
@@ -43,10 +43,10 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
   ...
 
 $ rintel metrics class --top 3
-class            loc  methods  fields  wmc  max_cc  avg_cc  cbo  rfc  dit  noc  lcom  fan_in  fan_out
-PetController    161       12       3   31       9    2.58    9   46    0    0     4       1        8
-Owner            141       13       4   27       7    2.08   16   32    3    0     2      11        5
-OwnerController  141       12       2   22       7    1.83    5   42    0    0     2       1        4
+class            loc  methods  fields  wmc  max_cc  avg_cc  cbo  rfc  lcom
+PetController    161       12       3   31       9    2.58    9   46     4
+Owner            141       13       4   27       7    2.08   16   32     2
+OwnerController  141       12       2   22       7    1.83    5   42     2
 ```
 
 ## What each language needs
@@ -66,21 +66,22 @@ rintel downloads nothing. A library that is not on the machine becomes `missing-
 
 Run them anywhere inside a repository. Queries refresh the index first when files changed (`--no-scan` turns that off). The index lives in `.ri/cache/`, which rintel git-ignores by itself, so `git add -A` never picks it up.
 
-```sh
-rintel callers UserService.createUser --depth 2   # who calls it, as a tree
-rintel callees UserService.createUser             # what it calls, in source order
-rintel refs UserDto                               # everything that references it
-rintel find User                                  # search symbols
-rintel api                                        # HTTP endpoints
-rintel metrics [class|method|package|file]        # complexity, size, coupling, cohesion
-rintel deps                                       # package dependencies and cycles (--format dot|mermaid)
-rintel check                                      # quality gate: exits 1 on warnings (--format sarif)
-rintel impact --base origin/main                  # what a change affects: callers, endpoints, tests to run
-rintel stats                                      # how much was resolved, and what was not
-rintel report --open                              # the HTML report
-rintel scan [--full]                              # refresh the index (queries do this themselves)
-rintel mcp                                        # MCP server on stdio
-```
+| Command | What it does |
+|---|---|
+| `rintel callers UserService.createUser --depth 2` | who calls it, as a tree |
+| `rintel callees UserService.createUser` | what it calls, in source order |
+| `rintel refs UserDto` | everything that references it |
+| `rintel find User` | search symbols |
+| `rintel api` | HTTP endpoints |
+| `rintel metrics [class\|method\|package\|file]` | complexity, size, coupling, cohesion |
+| `rintel deps` | package dependencies and cycles; `--format dot\|mermaid` for a diagram |
+| `rintel check` | security and quality gate: exits 1 on warnings; `--category`, `--vulns`, `--format sarif` |
+| `rintel impact --base origin/main` | what a change affects: callers, endpoints, tests to run |
+| `rintel stats` | how much was resolved, and what was not |
+| `rintel report --open` | the HTML report |
+| `rintel scan [--full]` | refresh the index (queries do this themselves) |
+| `rintel mcp` | MCP server on stdio |
+| `rintel doctor` | which languages can be analyzed on this machine |
 
 - A symbol can be written the way rintel prints it: `UserService.createUser`, `"UserService.createUser(String)"`, `web.Server.handle` (Go: package), `service.UserService.create` (TypeScript, Python: file), or a full ID. A typo gets a suggestion.
 - `--format json` everywhere; `--format csv` for metrics. JSON output and MCP responses share one schema.
@@ -89,13 +90,26 @@ rintel mcp                                        # MCP server on stdio
 
 ### In CI
 
-`rintel check` runs 14 rules. Ten are **warnings** and fail the build: complex, long, deeply nested or many-parameter methods; large, highly coupled or low-cohesion classes; package and class dependency cycles; upward layer dependencies. Four are **notes** and do not: controllers that skip the service layer, and candidates for unreferenced, test-only and untested code. Notes come from static relations only, so a framework, reflection or template call can make them wrong.
+`rintel check` runs 22 rules: 8 for security and 14 for quality, plus an optional dependency lookup. `--category security` or `--category quality` shows one group. Every rule comes with a fix, printed under the rule and included in JSON, SARIF and the MCP response, so a developer or an AI agent knows what to change.
+
+**Security.** Five are warnings: secrets written in the source (CWE-798), SQL built by joining strings (CWE-89), TLS verification switched off (CWE-295), deserialization that can run code (CWE-502), strings run as code (CWE-95). Three are notes, places to review: broken hashes and ciphers (CWE-327), external commands (CWE-78), strings put into the page as HTML (CWE-79). These rules match one source line as text, so confirm a finding before changing code; a statement spread over several lines can be missed. A finding never quotes the line, so a report does not spread the secret it found. Secrets are also looked for in settings files git tracks (`.env`, `*.yml`, `*.properties`, `*.toml`, `*.ini`, `*.conf`); an ignored `.env` is where secrets belong and is left alone.
+
+**Vulnerable dependencies (off by default).** `rintel check --vulns` looks up the pinned dependency versions at [osv.dev](https://osv.dev) and reports each known vulnerability with the version that fixes it. This is the only thing in rintel that uses the network: it sends package names and versions, nothing else, and says so before it does. Go modules matching `GOPRIVATE` and npm packages from a private registry are not sent. Without a network the other checks still run, a message says the dependency check was not done, and the exit code is 3 so a CI gate does not pass on an unchecked build. Read from `go.mod`, `package-lock.json`, `requirements*.txt`, `poetry.lock`, `uv.lock` and the artifacts named in Maven and Gradle build files; yarn and pnpm locks and transitive Java dependencies are not covered. A hit means the version is affected, not that the vulnerable code is reached.
+
+**Quality.** Ten are **warnings** and fail the build: complex, long, deeply nested or many-parameter methods; large, highly coupled or low-cohesion classes; package and class dependency cycles; upward layer dependencies. Four are **notes** and do not: controllers that skip the service layer, and candidates for unreferenced, test-only and untested code. Notes come from static relations only, so a framework, reflection or template call can make them wrong.
 
 ```sh
-rintel check                                  # exit 1 if there is any warning
-rintel check --changed-since origin/main      # only findings in files this branch touched (for existing code bases)
-rintel check --fail-on never --format sarif > rintel.sarif    # for a code-scanning dashboard
-rintel impact --base origin/main --format md  # Markdown for a pull-request comment
+# fail the build on any warning
+rintel check
+
+# only findings in files this branch touched (for an existing code base)
+rintel check --changed-since origin/main
+
+# SARIF for a code-scanning dashboard
+rintel check --fail-on never --format sarif > rintel.sarif
+
+# Markdown for a pull-request comment
+rintel impact --base origin/main --format md
 ```
 
 `rintel impact` compares the working tree with a git revision (default `HEAD`), finds the symbols whose lines changed, and follows their dependents up to `--depth` steps (default 3, max 6). A path that goes through an inferred relation is marked as such.
@@ -107,7 +121,10 @@ Optional, in `.ri/config.json`. An unknown key is an error, not ignored.
 ```json
 {
   "exclude": ["**/*.pb.go", "legacy/**"],
-  "thresholds": { "cc": 15, "method_loc": 80, "nesting": 4, "params": 5, "wmc": 50, "class_loc": 500, "cbo": 14, "lcom": 1 },
+  "thresholds": {
+    "cc": 15, "method_loc": 80, "nesting": 4, "params": 5,
+    "wmc": 50, "class_loc": 500, "cbo": 14, "lcom": 1
+  },
   "disable": ["untested-class"]
 }
 ```
@@ -152,7 +169,7 @@ How much is a fact depends on the language. Java, Go and TypeScript are resolved
 
 | Metric | Definition here |
 |---|---|
-| CC | cyclomatic complexity: 1 + `if`, loops, `case`, `catch`, `?:`, `&&`, `||` |
+| CC | cyclomatic complexity: 1 + `if`, loops, `case`, `catch`, `?:`, `&&`, `\|\|` |
 | Nesting | deepest nesting of control structures |
 | WMC | sum of the CC of a class's methods |
 | CBO | other repository classes the class references or is referenced by |
@@ -171,6 +188,7 @@ Definitions differ between tools (whether CBO counts libraries, what a line is),
 - **Go**: calls, type and field uses, interface satisfaction, embedding, routes for `net/http`, gin, echo, chi, gorilla/mux, fiber and httprouter. Calls through function values are `dynamic-call`. Route-group prefixes are not joined. `vendor/` and `testdata/` are skipped; cgo-only files are not read.
 - **TypeScript / JavaScript / Vue**: calls (including JSX component use), type and member uses, `extends`/`implements`, overrides, routes for Hono, Express, Fastify and Koa routers. Analyzed with the bundled TypeScript 5.9.3 compiler whatever version the project uses; `tsconfig.json` options it does not know are ignored. In `.vue` files only the `<script>` blocks are analyzed, not what the template references. Calls through callback parameters and `any` are `dynamic-call`.
 - **Python**: functions, classes, methods, fields assigned on `self`, inheritance, overrides, FastAPI/Flask route decorators (heuristic: the decorator is matched by shape). Decorators that replace functions, metaclasses and `getattr` are not modelled.
+- **Generated code** (`build/generated*`, `target/generated-*`, `generated/`, `*.pb.go`, `*_gen.go`, `*.gen.ts`, `*_pb2.py`) is analyzed so calls into it resolve, but like test code it is left out of metrics, checks and graphs unless asked for (`--tests`, or the checkbox in the report).
 - **Other languages** (Kotlin, C#, Rust, …) are counted and reported as not analyzed.
 - **Candidate lists** ("unreferenced methods", "no test touches") come from static relations only. Framework, reflection and template calls are invisible, so treat them as starting points.
 - **Java library versions**: the automatic classpath takes each library in the version the build declares — coordinates in `build.gradle`/`pom.xml`, Gradle version catalogs and variables, Maven properties, and what the Spring Boot version manages. Version ranges and constraints are not followed, and a library with no declared version is taken in the newest cached version. For exact versions, write the build tool's classpath to `.ri/classpath` (`mvn dependency:build-classpath -Dmdep.outputFile=.ri/classpath` works as is).
@@ -181,9 +199,11 @@ Measured on a 340,000-line Go repository (`k8s.io/client-go`, 2,453 files): full
 ## Development
 
 ```sh
-make test     # go vet + go test (each language's tests need its toolchain and are skipped without it)
+make test     # go vet + go test
 make vuln     # govulncheck; must print "No vulnerabilities found."
 ```
+
+Each language's tests need its toolchain and are skipped without it.
 
 The suite's core guarantee is that an incremental scan equals a full scan after every edit, for every language. Dependency policy: only versions with no known vulnerabilities; two Go dependencies (`modernc.org/sqlite`, the official MCP Go SDK) and one bundled compiler (TypeScript 5.9.3, Apache-2.0, unmodified; provenance and hash in [cmd/rintel/adapter/README.md](cmd/rintel/adapter/README.md)); the Java and Python adapters and the report use no libraries at all. Places where a simpler approach was chosen on purpose are marked with a `shortcut:` comment that says when to replace it.
 

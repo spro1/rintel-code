@@ -17,6 +17,7 @@ type MethodMetric struct {
 	File       string `json:"file"`
 	Line       int    `json:"line"`
 	Test       bool   `json:"test,omitempty"`
+	Generated  bool   `json:"generated,omitempty" jsonschema:"written by a tool (build output, protobuf, ...); left out by default like test code"`
 	LOC        int    `json:"loc" jsonschema:"lines from the first to the last line of the declaration"`
 	CC         int    `json:"cc" jsonschema:"cyclomatic complexity: 1 + if, loop, case, catch, ?:, && and ||"`
 	Nesting    int    `json:"nesting" jsonschema:"deepest nesting of control structures"`
@@ -27,25 +28,26 @@ type MethodMetric struct {
 }
 
 type ClassMetric struct {
-	ID      string  `json:"id"`
-	Kind    string  `json:"kind"`
-	Package string  `json:"package"`
-	File    string  `json:"file"`
-	Line    int     `json:"line"`
-	Test    bool    `json:"test,omitempty"`
-	LOC     int     `json:"loc"`
-	Methods int     `json:"methods" jsonschema:"declared methods and constructors, generated ones excluded"`
-	Fields  int     `json:"fields"`
-	WMC     int     `json:"wmc" jsonschema:"weighted methods per class: sum of the methods' cyclomatic complexity"`
-	MaxCC   int     `json:"max_cc"`
-	AvgCC   float64 `json:"avg_cc"`
-	CBO     int     `json:"cbo" jsonschema:"coupling between objects: other repository classes this class references or is referenced by"`
-	RFC     int     `json:"rfc" jsonschema:"response for class: its methods plus the distinct methods they call"`
-	DIT     int     `json:"dit" jsonschema:"depth of inheritance tree, counting superclasses outside the repository as one level"`
-	NOC     int     `json:"noc" jsonschema:"direct subclasses and implementers in the repository"`
-	LCOM    int     `json:"lcom" jsonschema:"LCOM4: groups of methods (getters and setters excluded) that share no field and do not call each other; 1 is cohesive, 0 means not applicable"`
-	FanIn   int     `json:"fan_in" jsonschema:"repository classes that reference this class"`
-	FanOut  int     `json:"fan_out" jsonschema:"repository classes this class references"`
+	ID        string  `json:"id"`
+	Kind      string  `json:"kind"`
+	Package   string  `json:"package"`
+	File      string  `json:"file"`
+	Line      int     `json:"line"`
+	Test      bool    `json:"test,omitempty"`
+	Generated bool    `json:"generated,omitempty" jsonschema:"written by a tool (build output, protobuf, ...); left out by default like test code"`
+	LOC       int     `json:"loc"`
+	Methods   int     `json:"methods" jsonschema:"declared methods and constructors, generated ones excluded"`
+	Fields    int     `json:"fields"`
+	WMC       int     `json:"wmc" jsonschema:"weighted methods per class: sum of the methods' cyclomatic complexity"`
+	MaxCC     int     `json:"max_cc"`
+	AvgCC     float64 `json:"avg_cc"`
+	CBO       int     `json:"cbo" jsonschema:"coupling between objects: other repository classes this class references or is referenced by"`
+	RFC       int     `json:"rfc" jsonschema:"response for class: its methods plus the distinct methods they call"`
+	DIT       int     `json:"dit" jsonschema:"depth of inheritance tree, counting superclasses outside the repository as one level"`
+	NOC       int     `json:"noc" jsonschema:"direct subclasses and implementers in the repository"`
+	LCOM      int     `json:"lcom" jsonschema:"LCOM4: groups of methods (getters and setters excluded) that share no field and do not call each other; 1 is cohesive, 0 means not applicable"`
+	FanIn     int     `json:"fan_in" jsonschema:"repository classes that reference this class"`
+	FanOut    int     `json:"fan_out" jsonschema:"repository classes this class references"`
 }
 
 type PackageMetric struct {
@@ -63,12 +65,13 @@ type PackageMetric struct {
 }
 
 type FileMetric struct {
-	Path    string `json:"path"`
-	Test    bool   `json:"test,omitempty"`
-	Lines   int    `json:"lines"`
-	Code    int    `json:"code"`
-	Comment int    `json:"comment"`
-	Blank   int    `json:"blank"`
+	Path      string `json:"path"`
+	Test      bool   `json:"test,omitempty"`
+	Generated bool   `json:"generated,omitempty" jsonschema:"written by a tool (build output, protobuf, ...); left out by default like test code"`
+	Lines     int    `json:"lines"`
+	Code      int    `json:"code"`
+	Comment   int    `json:"comment"`
+	Blank     int    `json:"blank"`
 }
 
 type Metrics struct {
@@ -80,6 +83,11 @@ type Metrics struct {
 }
 
 // test directories, Go test files, JS/TS spec files, pytest files
+// generatedPath matches code a tool wrote: build output kept for type resolution, protobuf and similar generators.
+// Like test code it is analyzed (calls into it must resolve) but left out of metrics, checks and graphs by default:
+// nobody maintains it by hand, and it would bury the code people do maintain.
+var generatedPath = regexp.MustCompile(`(^|/)(build|target)/generated[^/]*/|(^|/)(generated|gen|__generated__)/|\.pb(\.gw)?\.go$|_gen\.go$|_generated\.go$|\.(gen|generated)\.[cm]?[jt]sx?$|_pb2(_grpc)?\.pyi?$`)
+
 var testPath = regexp.MustCompile(`(^|/)(src/)?tests?/|(^|/)__tests__/|(^|/)e2e/|_test\.go$|\.(test|spec)\.[cm]?[jt]sx?$|(^|/)test_[^/]*\.py$|_test\.py$|(^|/)conftest\.py$`)
 var accessor = regexp.MustCompile(`#(get|set|is)[A-Z]\w*\(`)
 
@@ -279,16 +287,16 @@ func (q *Q) Metrics() (*Metrics, error) {
 		if n.ext || n.top == nil {
 			continue
 		}
-		test := testPath.MatchString(n.file)
+		test, gen := testPath.MatchString(n.file), generatedPath.MatchString(n.file)
 		if isMethod(n) {
-			m.Methods = append(m.Methods, MethodMetric{ID: n.id, File: n.file, Line: n.l1, Test: test, LOC: n.l2 - n.l1 + 1, CC: max(n.a.M.CC, 1),
+			m.Methods = append(m.Methods, MethodMetric{ID: n.id, File: n.file, Line: n.l1, Test: test, Generated: gen, LOC: n.l2 - n.l1 + 1, CC: max(n.a.M.CC, 1),
 				Nesting: n.a.M.Nest, Statements: n.a.M.Stmts, Params: len(n.a.Params), CalledBy: calledBy[n], Calls: calls[n]})
 		}
 		if n.typ != "class" || n.top != n {
 			continue
 		}
 		a := get(n)
-		c := ClassMetric{ID: n.id, Kind: n.a.Kind, Package: pkgOf(n.id), File: n.file, Line: n.l1, Test: test, LOC: n.l2 - n.l1 + 1, Methods: a.methods, Fields: a.fields,
+		c := ClassMetric{ID: n.id, Kind: n.a.Kind, Package: pkgOf(n.id), File: n.file, Line: n.l1, Test: test, Generated: gen, LOC: n.l2 - n.l1 + 1, Methods: a.methods, Fields: a.fields,
 			WMC: a.wmc, MaxCC: a.maxCC, CBO: len(a.coupled), RFC: a.methods + len(a.called), DIT: dit(n, map[*node]bool{}), NOC: a.sub, FanIn: len(a.in), FanOut: len(a.out)}
 		if a.methods > 0 {
 			c.AvgCC = round2(float64(a.wmc) / float64(a.methods))
@@ -301,7 +309,7 @@ func (q *Q) Metrics() (*Metrics, error) {
 			c.LCOM = len(groups)
 		}
 		m.Classes = append(m.Classes, c)
-		if test {
+		if test || gen {
 			continue
 		}
 		p := pkgs[c.Package]
@@ -318,12 +326,12 @@ func (q *Q) Metrics() (*Metrics, error) {
 			p.abstract++
 		}
 		for o := range a.in {
-			if !testPath.MatchString(o.file) && pkgOf(o.id) != c.Package {
+			if !testPath.MatchString(o.file) && !generatedPath.MatchString(o.file) && pkgOf(o.id) != c.Package {
 				p.ca[o] = true
 			}
 		}
 		for o := range a.out {
-			if !testPath.MatchString(o.file) && pkgOf(o.id) != c.Package {
+			if !testPath.MatchString(o.file) && !generatedPath.MatchString(o.file) && pkgOf(o.id) != c.Package {
 				p.ce[o] = true
 			}
 		}
@@ -354,7 +362,7 @@ func (q *Q) Metrics() (*Metrics, error) {
 		var js string
 		rows.Scan(&f.Path, &js)
 		json.Unmarshal([]byte(js), &f)
-		f.Test = testPath.MatchString(f.Path)
+		f.Test, f.Generated = testPath.MatchString(f.Path), generatedPath.MatchString(f.Path)
 		m.Files = append(m.Files, f)
 	}
 	sort.SliceStable(m.Files, func(i, j int) bool { return m.Files[i].Code > m.Files[j].Code })
@@ -365,17 +373,17 @@ func (q *Q) Metrics() (*Metrics, error) {
 func (m *Metrics) limit(n int, tests bool) *Metrics {
 	out := &Metrics{Scan: m.Scan, Classes: []ClassMetric{}, Methods: []MethodMetric{}, Packages: m.Packages, Files: []FileMetric{}}
 	for _, c := range m.Classes {
-		if (tests || !c.Test) && (n <= 0 || len(out.Classes) < n) {
+		if (tests || !(c.Test || c.Generated)) && (n <= 0 || len(out.Classes) < n) {
 			out.Classes = append(out.Classes, c)
 		}
 	}
 	for _, c := range m.Methods {
-		if (tests || !c.Test) && (n <= 0 || len(out.Methods) < n) {
+		if (tests || !(c.Test || c.Generated)) && (n <= 0 || len(out.Methods) < n) {
 			out.Methods = append(out.Methods, c)
 		}
 	}
 	for _, c := range m.Files {
-		if (tests || !c.Test) && (n <= 0 || len(out.Files) < n) {
+		if (tests || !(c.Test || c.Generated)) && (n <= 0 || len(out.Files) < n) {
 			out.Files = append(out.Files, c)
 		}
 	}

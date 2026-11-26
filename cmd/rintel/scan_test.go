@@ -6,8 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -1070,4 +1073,153 @@ export function register(app: Hono) {
 		name  string
 		apply func()
 	}{{"edit a handler", func() { editor(t, dir)("src/api.ts", "service.lookup(1)", "service.lookup(2)") }}})
+}
+
+func TestGeneratedPath(t *testing.T) {
+	for path, want := range map[string]bool{
+		"build/generated/sources/dgs/io/acme/types/Article.java": true, "target/generated-sources/annotations/QUser.java": true,
+		"api/v1/user.pb.go": true, "api/v1/user.pb.gw.go": true, "internal/zz_gen.go": true, "web/src/api.gen.ts": true, "proto/user_pb2.py": true,
+		"src/main/java/io/acme/generator/Builder.java": false, "internal/generic/list.go": false, "web/src/general.ts": false, "cmd/gen.go": false,
+	} {
+		if got := generatedPath.MatchString(path); got != want {
+			t.Errorf("generatedPath(%q) = %v, want %v", path, got, want)
+		}
+	}
+}
+
+func TestSecurityFindings(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"a.go": `package a
+import "crypto/md5"
+var password = "hunter2hunter2"
+var tokenHeader = "X-Auth-Token-Name"
+var secret = "${JWT_SECRET}"
+// password = "commented0out"
+// AKIAABCDEFGHIJKLMNOP
+func q(id string) { db.Query("SELECT * FROM users WHERE id = " + id) }
+func ok(id string) { db.Query("SELECT * FROM users WHERE id = ?", id) }
+func s(id string) { db.Query(fmt.Sprintf("DELETE FROM users WHERE id = %s", id)) }
+var c = tls.Config{InsecureSkipVerify: true}
+var cmd = exec.Command("ls")
+`,
+		"b.py": `import pickle, yaml, subprocess
+x = pickle.loads(data)
+y = yaml.load(f, Loader=yaml.SafeLoader)
+z = eval(expr)
+w = model.eval()
+cur.execute("select * from t where id = %s", (i,))
+cur.execute(f"select * from t where id = {i}")
+requests.get(u, verify=False)
+`,
+		"c.ts": "const r = /a/.exec(s);\nel.innerHTML = html;\nif (el.innerHTML == '') {}\nawait sql`select * from t where id = ${id}`;\ndb.query(`select * from t where id = ${id}`);\neval(code);\n",
+		"D.java": `class D { void f(String n) throws Exception {
+  MessageDigest.getInstance("MD5");
+  MessageDigest.getInstance("SHA-256");
+  st.executeQuery("select * from t where name = '" + n + "'");
+  String sql = "select a from t " +
+  new ObjectInputStream(in);
+} }`,
+		"a_test.go": "package a\nvar password = \"hunter2hunter2\"\n",
+	}
+	var paths []string
+	for name, body := range files {
+		os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+		paths = append(paths, name)
+	}
+	sort.Strings(paths)
+	var got []string
+	for _, f := range securityFindings(dir, paths) {
+		got = append(got, fmt.Sprintf("%s:%d %s", f.File, f.Line, f.Rule))
+		if strings.Contains(f.Message, "hunter2") {
+			t.Errorf("message leaks the secret: %s", f.Message)
+		}
+	}
+	want := []string{
+		"D.java:2 weak-crypto", "D.java:4 sql-concatenation", "D.java:6 unsafe-deserialization",
+		"a.go:2 weak-crypto", "a.go:3 hardcoded-secret", "a.go:7 hardcoded-secret", "a.go:8 sql-concatenation", "a.go:10 sql-concatenation",
+		"a.go:11 tls-verification-disabled", "a.go:12 command-execution",
+		"b.py:2 unsafe-deserialization", "b.py:4 dynamic-code", "b.py:7 sql-concatenation", "b.py:8 tls-verification-disabled",
+		"c.ts:2 html-injection", "c.ts:5 sql-concatenation", "c.ts:6 dynamic-code",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("findings:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	for _, r := range securityRules { // every rule has a title and a fix, in both languages
+		if ruleTitles[r.id] == "" || ruleFix[r.id][0] == "" || ruleFix[r.id][1] == "" {
+			t.Errorf("rule %s lacks a title or fix", r.id)
+		}
+	}
+	for _, id := range ruleOrder {
+		if ruleFix[id][0] == "" {
+			t.Errorf("rule %s has no fix text", id)
+		}
+	}
+}
+
+func TestSettingsSecretsAndSQLConstants(t *testing.T) {
+	dir := t.TempDir()
+	files := map[string]string{
+		"application.yml": "spring:\n  datasource:\n    password: s3cretPassw0rd\n    username: admin123456\n  jwt:\n    secret: ${JWT_SECRET}\n# password: old12345pw\n",
+		".env":            "API_KEY=abcd1234efgh5678\nTOKEN=$OTHER\n",
+		".env.example":    "API_KEY=abcd1234efgh5678\n",
+		"pnpm-lock.yaml":  "token: abcd1234efgh5678\n",
+		"q.ts":            "db.query(`UPDATE t SET a = $1 WHERE id = $2${claim ? ' AND b IS NULL' : ''}`)\ndb.query(`SELECT a FROM t WHERE x > now() - interval '${DAYS} days'`)\ndb.query(`SELECT a FROM t WHERE ${filter}`)\n",
+		"m.go":            "package m\nfunc f(id string) {\n\tq := fmt.Sprintf(`SELECT a\n\t\tFROM t\n\t\tWHERE id = %s`, id)\n\tsafe := `SELECT a\n\t\tFROM t WHERE id = ?`\n\t_ = template.HTML(id)\n\t_ = template.HTML(\"<b>fixed</b>\")\n}\n",
+		"n.js":            "var serialize = require('node-serialize')\nvar md5 = require('md5')\nserialize.unserialize(body)\n",
+	}
+	var paths []string
+	for name, body := range files {
+		os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644)
+		paths = append(paths, name)
+	}
+	sort.Strings(paths)
+	var got []string
+	for _, f := range securityFindings(dir, paths) {
+		got = append(got, fmt.Sprintf("%s:%d %s", f.File, f.Line, f.Rule))
+	}
+	want := ".env:1 hardcoded-secret\napplication.yml:3 hardcoded-secret\nm.go:3 sql-concatenation\nm.go:8 html-injection\n" +
+		"n.js:2 weak-crypto\nn.js:3 unsafe-deserialization\nq.ts:3 sql-concatenation"
+	if strings.Join(got, "\n") != want {
+		t.Errorf("findings:\n%s\nwant:\n%s", strings.Join(got, "\n"), want)
+	}
+}
+
+func TestVulnerableDependencies(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/x\n\ngo 1.22\n\nrequire (\n\tgolang.org/x/net v0.1.0\n\tcorp.example/internal/lib v1.0.0 // indirect\n)\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "requirements.txt"), []byte("# pins\nflask==0.12\nrequests>=2.0\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "package-lock.json"), []byte(`{"lockfileVersion":3,"packages":{"":{"name":"x"},
+		"node_modules/lodash":{"version":"4.17.0","resolved":"https://registry.npmjs.org/lodash/-/lodash-4.17.0.tgz"},
+		"node_modules/@corp/secret":{"version":"1.0.0","resolved":"https://npm.corp.example/secret-1.0.0.tgz"}}}`), 0o644)
+	t.Setenv("GOPRIVATE", "corp.example")
+	deps := pinnedDeps(dir, &Config{})
+	var names []string
+	for _, d := range deps {
+		names = append(names, d.eco+" "+d.name+" "+d.version)
+	}
+	if got, want := strings.Join(names, "\n"), "Go golang.org/x/net 0.1.0\nnpm lodash 4.17.0\nPyPI flask 0.12"; got != want {
+		t.Fatalf("pinned dependencies:\n%s\nwant:\n%s", got, want) // private names must not be sent anywhere
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/v1/querybatch" {
+			fmt.Fprint(w, `{"results":[{"vulns":[{"id":"GHSA-aaaa"},{"id":"GO-2023-1"}]},{},{}]}`)
+			return
+		}
+		fmt.Fprintf(w, `{"id":%q,"summary":"HTTP/2 flaw","aliases":["CVE-2023-1","GO-2023-1","GHSA-aaaa"],"affected":[{"package":{"name":"golang.org/x/net","ecosystem":"Go"},"ranges":[{"events":[{"introduced":"0"},{"fixed":"0.7.0"}]}]}]}`, path.Base(r.URL.Path))
+	}))
+	defer srv.Close()
+	old := osvURL
+	defer func() { osvURL = old }()
+	osvURL = srv.URL
+	fs, err := vulnFindings(deps)
+	if err != nil || len(fs) != 1 || fs[0].File != "go.mod" || fs[0].Line != 6 ||
+		fs[0].Message != "golang.org/x/net 0.1.0: GHSA-aaaa / CVE-2023-1 HTTP/2 flaw (fixed in 0.7.0)" {
+		t.Errorf("findings %+v, err %v", fs, err)
+	}
+	srv.Close() // no network: an error, never an empty "all clear"
+	if _, err := vulnFindings(deps); err == nil {
+		t.Error("an unreachable service must be reported")
+	}
 }

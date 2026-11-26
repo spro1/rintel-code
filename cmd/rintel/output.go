@@ -135,7 +135,10 @@ func writeChecks(w io.Writer, c *CheckResult) {
 		if r.Count == 0 {
 			continue
 		}
-		fmt.Fprintf(w, "%s  %d  %s\n", r.ID, r.Count, r.Title)
+		fmt.Fprintf(w, "%s  %d  %s\n", r.ID, r.Count, strings.TrimSpace(r.Title+"  "+r.CWE))
+		if fix := ruleFix[r.ID]; fix[0] != "" {
+			fmt.Fprintf(w, "  %s %s\n", tr("fix:", "수정:"), tr(fix[0], fix[1]))
+		}
 		for i, f := range by[r.ID] {
 			if i == 15 {
 				fmt.Fprintf(w, tr("  … %d more (--format json for all)\n", "  … %d건 더 (전체는 --format json)\n"), len(by[r.ID])-15)
@@ -164,7 +167,14 @@ func writeSARIF(w io.Writer, c *CheckResult) {
 	}
 	rules := []map[string]any{}
 	for _, r := range c.Rules {
-		rules = append(rules, map[string]any{"id": r.ID, "shortDescription": msg{r.Title}})
+		rule := map[string]any{"id": r.ID, "shortDescription": msg{r.Title}}
+		if r.Fix != "" {
+			rule["help"] = msg{r.Fix}
+		}
+		if r.CWE != "" { // the tags code-scanning dashboards use to file a result under security
+			rule["properties"] = map[string]any{"tags": []string{"security", "external/cwe/" + strings.ToLower(r.CWE)}}
+		}
+		rules = append(rules, rule)
 	}
 	results := []map[string]any{}
 	for _, f := range c.Findings {
