@@ -12,7 +12,12 @@
   <img src="https://img.shields.io/badge/analyzes-Java%20%C2%B7%20Go%20%C2%B7%20TypeScript%20%C2%B7%20Python-informational.svg" alt="Java, Go, TypeScript, Python 분석">
 </p>
 
-<p align="center"><a href="README.md">English</a> · 한국어</p>
+<p align="center">
+  <a href="https://spro1.github.io/rintel-code/ko.html">소개 페이지</a> ·
+  <a href="https://spro1.github.io/rintel-code/demo/petclinic.html">데모 보고서</a> ·
+  <a href="docs/README.md">가이드</a> ·
+  <a href="README.md">English</a> · 한국어
+</p>
 
 ![구조 화면: 메서드를 호출하는 곳을 파일별로 묶어 보여 줌](docs/img/structure.png)
 

@@ -12,7 +12,12 @@
   <img src="https://img.shields.io/badge/analyzes-Java%20%C2%B7%20Go%20%C2%B7%20TypeScript%20%C2%B7%20Python-informational.svg" alt="analyzes Java, Go, TypeScript, Python">
 </p>
 
-<p align="center">English · <a href="README.ko.md">한국어</a></p>
+<p align="center">
+  <a href="https://spro1.github.io/rintel-code/">Website</a> ·
+  <a href="https://spro1.github.io/rintel-code/demo/petclinic.html">Live demo report</a> ·
+  <a href="docs/README.md">Guides</a> ·
+  English · <a href="README.ko.md">한국어</a>
+</p>
 
 ![Structure view: callers of a repository method, grouped by file](docs/img/structure.png)
 
