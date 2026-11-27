@@ -1,7 +1,10 @@
 package main
 
 import (
+	"cmp"
 	"context"
+	"errors"
+	"sync"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -17,11 +20,13 @@ type searchIn struct {
 }
 
 type symbolIn struct {
-	Symbol string `json:"symbol" jsonschema:"symbol ID (java:com.acme.UserService#createUser(UserDto)) or a dotted name such as UserService.createUser"`
+	Symbol string `json:"symbol,omitempty" jsonschema:"symbol ID (java:com.acme.UserService#createUser(UserDto)) or a dotted name such as UserService.createUser"`
+	ID     string `json:"id,omitempty" jsonschema:"same as symbol: the id a search result gave"`
 }
 
 type neighborsIn struct {
-	Symbol    string `json:"symbol" jsonschema:"symbol ID or dotted name"`
+	Symbol    string `json:"symbol,omitempty" jsonschema:"symbol ID or dotted name"`
+	ID        string `json:"id,omitempty" jsonschema:"same as symbol: the id a search result gave"`
 	Direction string `json:"direction" jsonschema:"in = who depends on this symbol (callers), out = what it depends on (callees)"`
 	Depth     int    `json:"depth,omitempty" jsonschema:"default 1, max 3"`
 	Relation  string `json:"relation,omitempty" jsonschema:"calls, uses (type or field mentioned), extends, implements, overrides or injects; empty for all"`
@@ -63,19 +68,53 @@ type scanIn struct {
 }
 
 // tool registers a typed tool; the SDK derives input and output schemas from the Go types.
+// firstScan builds the index when a query finds none. Only the regenerable cache under .ri/cache is written.
+var (
+	firstScan   func() (*ScanResult, error)
+	firstScanMu sync.Mutex
+)
+
+// withFirstScan runs a query, and when there is no index yet builds it and asks again, like the CLI does.
+func withFirstScan[Out any](call func() (Out, error)) (Out, error) {
+	out, err := call()
+	if !errors.Is(err, errNoScan) || firstScan == nil {
+		return out, err
+	}
+	firstScanMu.Lock()
+	_, serr := firstScan()
+	firstScanMu.Unlock()
+	if serr != nil {
+		return out, serr
+	}
+	return call()
+}
+
 func tool[In, Out any](s *mcp.Server, name, desc string, readOnly bool, fn func(In) (Out, error)) {
 	closed := false
 	mcp.AddTool(s, &mcp.Tool{Name: name, Description: desc,
 		Annotations: &mcp.ToolAnnotations{ReadOnlyHint: readOnly, IdempotentHint: true, OpenWorldHint: &closed, DestructiveHint: &closed}},
 		func(_ context.Context, _ *mcp.CallToolRequest, in In) (*mcp.CallToolResult, Out, error) {
-			out, err := fn(in)
+			out, err := withFirstScan(func() (Out, error) { return fn(in) })
 			return nil, out, err
 		})
 }
 
+// mcpInstructions is shown to the agent for the whole session: when these tools beat text search.
+const mcpInstructions = "Static analysis of this repository (Java, Go, TypeScript/JavaScript, Python). " +
+	"Before you answer who calls or uses a function, method, class or field, whether something can be deleted, renamed or changed safely, " +
+	"or what a change affects, call get_neighbors (direction=in) or analyze_impact instead of searching the text: " +
+	"they resolve overloads, interfaces and dependency injection, and tell production code from tests. " +
+	"search_symbols finds the symbol id first. get_checks lists security and quality findings with a fix for each."
+
 func serveMCP(q *Q) error {
-	s := mcp.NewServer(&mcp.Implementation{Name: "rintel", Version: "0.1.0"}, nil)
+	s := mcp.NewServer(&mcp.Implementation{Name: "rintel", Version: "0.1.0"}, &mcp.ServerOptions{Instructions: mcpInstructions})
 	korean = false // agents get one stable language
+	firstScan = func() (*ScanResult, error) {
+		if latestScan(q.db) != 0 { // another call got there first
+			return nil, nil
+		}
+		return scan(q.root, q.db, false)
+	}
 	const evidence = " Every edge carries an evidence level: declared/resolved are facts from static analysis, heuristic is an inference (rule spring-di-multiple-candidates: several beans fit; class-hierarchy: any override may be the target). Responses give locations, not source text. For impact analysis use direction=in with relation empty: it returns callers and every symbol that mentions the type or field."
 	tool(s, "get_overview", "Start here. Modules, size, endpoints count, reference resolution rate and which languages are not analyzed for this repository.", true,
 		func(noIn) (*Overview, error) { return q.Overview() })
@@ -84,10 +123,10 @@ func serveMCP(q *Q) error {
 			return q.Search(in.Query, in.Kind, in.Module, in.Limit, in.Cursor)
 		})
 	tool(s, "get_symbol", "Location of one symbol and how many edges enter and leave it.", true,
-		func(in symbolIn) (*SymbolResult, error) { return q.GetSymbol(in.Symbol) })
+		func(in symbolIn) (*SymbolResult, error) { return q.GetSymbol(cmp.Or(in.Symbol, in.ID)) })
 	tool(s, "get_neighbors", "Callers/dependents (direction=in) or callees/dependencies (direction=out) of a symbol across the whole repository, up to depth 3."+evidence, true,
 		func(in neighborsIn) (*NeighborsResult, error) {
-			return q.Neighbors(in.Symbol, in.Direction, in.Depth, in.Relation, in.Limit, in.Cursor)
+			return q.Neighbors(cmp.Or(in.Symbol, in.ID), in.Direction, in.Depth, in.Relation, in.Limit, in.Cursor)
 		})
 	tool(s, "get_api_spec", "REST endpoints (Spring MVC) with their handler methods.", true,
 		func(in apiIn) (*APIResult, error) { return q.APISpec(in.PathPrefix, in.Limit, in.Cursor) })
@@ -129,9 +168,14 @@ func serveMCP(q *Q) error {
 			}
 			kept := []Finding{}
 			security := map[string]bool{}
+			rules := []RuleSummary{}
 			for _, r := range c.Rules {
 				security[r.ID] = r.Category == "security"
+				if in.Category == "" || in.Category == r.Category { // the rule list keeps full counts; findings are capped by limit
+					rules = append(rules, r)
+				}
 			}
+			c.Rules = rules
 			for _, f := range c.Findings {
 				if (in.Rule == "" || f.Rule == in.Rule) && (in.Category == "" || (in.Category == "security") == security[f.Rule]) && len(kept) < in.Limit {
 					kept = append(kept, f)

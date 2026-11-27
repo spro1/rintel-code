@@ -1,0 +1,14 @@
+{
+  "$schema": "https://anthropic.com/claude-code/marketplace.schema.json",
+  "name": "rintel",
+  "description": "rintel: repository intelligence for coding agents.",
+  "owner": { "name": "spro1", "url": "https://github.com/spro1" },
+  "plugins": [
+    {
+      "name": "rintel",
+      "description": "A skill and an MCP server that answer who-calls-what, change impact, and security and quality findings from static analysis. Needs the rintel binary on PATH.",
+      "source": "./",
+      "category": "development"
+    }
+  ]
+}

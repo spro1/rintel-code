@@ -1223,3 +1223,22 @@ func TestVulnerableDependencies(t *testing.T) {
 		t.Error("an unreachable service must be reported")
 	}
 }
+
+func TestMCPFirstScan(t *testing.T) {
+	old := firstScan
+	defer func() { firstScan = old }()
+	scans, calls := 0, 0
+	firstScan = func() (*ScanResult, error) { scans++; return nil, nil }
+	out, err := withFirstScan(func() (string, error) {
+		if calls++; calls == 1 {
+			return "", errNoScan
+		}
+		return "answer", nil
+	})
+	if out != "answer" || err != nil || scans != 1 || calls != 2 {
+		t.Errorf("out %q, err %v, scans %d, calls %d", out, err, scans, calls)
+	}
+	if _, err := withFirstScan(func() (string, error) { return "", errors.New("other") }); err == nil || scans != 1 {
+		t.Errorf("another error must pass through without a scan: %v, scans %d", err, scans)
+	}
+}

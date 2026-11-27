@@ -1,0 +1,27 @@
+{
+  "name": "rintel",
+  "version": "0.1.0",
+  "description": "Static analysis for coding agents: callers, change impact, endpoints, dependency cycles, and security and quality findings with fixes. Java, Go, TypeScript/JavaScript, Python.",
+  "author": {
+    "name": "spro1",
+    "url": "https://github.com/spro1"
+  },
+  "homepage": "https://github.com/spro1/rintel",
+  "repository": "https://github.com/spro1/rintel",
+  "license": "Apache-2.0",
+  "keywords": [
+    "static-analysis",
+    "call-graph",
+    "impact-analysis",
+    "security",
+    "mcp"
+  ],
+  "mcpServers": {
+    "rintel": {
+      "command": "rintel",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

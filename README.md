@@ -24,6 +24,7 @@ It reads **Java, Go, TypeScript / JavaScript (React, Vue) and Python**, and it t
 ## Quick start
 
 ```sh
+# installs into $(go env GOPATH)/bin, which must be on PATH
 go install github.com/spro1/rintel/cmd/rintel@latest
 
 cd your-repository
@@ -145,11 +146,27 @@ Optional, in `.ri/config.json`. An unknown key is an error, not ignored.
 
 `rintel report --source` also embeds the source, which adds a Source tab and a one-line preview at each call site. It is off by default because the report then contains the code itself.
 
-### MCP
+### Coding agents: skill and MCP
+
+rintel ships a skill (when to reach for which command, and how to act on the results) and an MCP server (the same data as typed tool calls). Both need the `rintel` binary on `PATH`. The server analyzes the repository it is started in, so one registration works for every project.
+
+**Claude Code** — the plugin installs the skill and registers the MCP server:
+
+```
+/plugin install rintel --marketplace spro1/rintel
+```
+
+On Claude Code older than 2.1.275: `/plugin marketplace add spro1/rintel`, then `/plugin install rintel@rintel`.
+
+MCP server only:
 
 ```sh
-claude mcp add rintel -- /path/to/rintel mcp -C /path/to/repo
+claude mcp add rintel -- rintel mcp
 ```
+
+The plugin adds three skills: `rintel` (who calls what, where something is used, is it safe to delete), `/rintel:impact` (what a change affects, which tests to run, new warnings) and `/rintel:security` (a security review that checks each finding against the code). At session start it tells you if the `rintel` binary is missing.
+
+**Any other agent** — each skill is one Markdown file under [`skills/`](skills/) that only uses the command line. The MCP server is `rintel mcp` on stdio (`-C <dir>` pins it to one repository).
 
 Tools: `get_overview`, `search_symbols`, `get_symbol`, `get_neighbors`, `get_api_spec`, `get_metrics`, `get_dependencies`, `get_checks`, `analyze_impact`, `scan_repository`. Every response carries a `scan` block; when `scan.stale` is true the working tree changed since the scan, and `scan_repository` refreshes it. Responses contain identifiers and locations, never source text.
 
@@ -193,6 +210,7 @@ Definitions differ between tools (whether CBO counts libraries, what a line is),
 - **Candidate lists** ("unreferenced methods", "no test touches") come from static relations only. Framework, reflection and template calls are invisible, so treat them as starting points.
 - **Java library versions**: the automatic classpath takes each library in the version the build declares — coordinates in `build.gradle`/`pom.xml`, Gradle version catalogs and variables, Maven properties, and what the Spring Boot version manages. Version ranges and constraints are not followed, and a library with no declared version is taken in the newest cached version. For exact versions, write the build tool's classpath to `.ri/classpath` (`mvn dependency:build-classpath -Dmdep.outputFile=.ri/classpath` works as is).
 - **Platforms**: developed and tested on macOS; CI runs on Linux. Windows is untested.
+- **Roadmap**: a packaged Codex plugin (today Codex can use the MCP server with `codex mcp add rintel -- rintel mcp`, and the skill files by hand), transitive Java dependencies and yarn/pnpm locks in `--vulns`, release binaries.
 
 Measured on a 340,000-line Go repository (`k8s.io/client-go`, 2,453 files): full scan about 4 seconds and 620 MB, a rescan with no changes 0.3 seconds, after editing one file about 1.5 seconds.
 

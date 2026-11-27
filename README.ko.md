@@ -22,6 +22,7 @@
 한 저장소에 여러 언어가 섞여 있어도 됩니다. 툴체인이 없는 언어는 경고와 함께 건너뛰고 나머지는 그대로 분석합니다.
 
 ```sh
+# $(go env GOPATH)/bin 에 설치됩니다. 이 경로가 PATH에 있어야 합니다
 go install github.com/spro1/rintel/cmd/rintel@latest
 cd <분석할 저장소>
 rintel doctor          # 이 PC에서 분석 가능한 언어 점검
@@ -174,11 +175,29 @@ rintel impact --base origin/main --format md
 }
 ```
 
-### MCP (Claude Code)
+### 코딩 에이전트: 스킬과 MCP
+
+rintel은 스킬(어떤 질문에 어떤 명령을 쓰고 결과를 어떻게 다룰지)과 MCP 서버(같은 데이터를 도구 호출로 제공)를 함께 제공합니다. 둘 다 `rintel` 실행 파일이 `PATH`에 있어야 합니다. 서버는 자신이 실행된 저장소를 분석하므로 한 번 등록하면 모든 프로젝트에서 씁니다.
+
+**Claude Code**: 플러그인이 스킬을 설치하고 MCP 서버를 등록합니다.
+
+```
+/plugin install rintel --marketplace spro1/rintel
+```
+
+Claude Code 2.1.275 미만에서는 `/plugin marketplace add spro1/rintel` 후 `/plugin install rintel@rintel`을 실행합니다.
+
+MCP 서버만 등록하려면:
 
 ```sh
-claude mcp add rintel -- /path/to/rintel mcp -C /path/to/repo
+claude mcp add rintel -- rintel mcp
 ```
+
+플러그인은 스킬 세 개를 추가합니다: `rintel`(누가 호출하나, 어디서 쓰이나, 지워도 되나), `/rintel:impact`(변경이 미치는 범위, 돌릴 테스트, 새 경고), `/rintel:security`(발견 항목을 코드와 대조해 판정하는 보안 검토). 세션을 시작할 때 `rintel` 실행 파일이 없으면 알려 줍니다.
+
+Codex용 플러그인은 로드맵에 있습니다. 지금도 Codex에서 `codex mcp add rintel -- rintel mcp`로 MCP 서버는 쓸 수 있습니다.
+
+**그 밖의 에이전트**: 스킬은 [`skills/`](skills/) 아래의 Markdown 파일이고 명령어만 사용합니다. MCP 서버는 표준 입출력으로 동작하는 `rintel mcp`입니다(`-C <디렉터리>`로 저장소를 고정할 수 있습니다).
 
 도구: `get_overview`, `search_symbols`, `get_symbol`, `get_neighbors`, `get_api_spec`, `get_metrics`, `get_dependencies`, `get_checks`, `analyze_impact`, `scan_repository`.
 모든 응답의 `scan.stale`이 true이면 작업 트리가 스캔 이후 바뀐 것이므로 `scan_repository`로 갱신합니다.
