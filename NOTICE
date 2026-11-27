@@ -6,3 +6,6 @@ This product bundles the TypeScript compiler, version 5.9.3, unmodified
 Copyright (c) Microsoft Corporation. Licensed under the Apache License, Version 2.0.
 Its license and third-party notices are inside the archive:
 typescript/LICENSE.txt and typescript/ThirdPartyNoticeText.txt.
+
+The Go modules compiled into the rintel binary, with their licence texts, are listed in
+THIRD_PARTY_NOTICES. Ship that file together with any binary distribution.

@@ -32,11 +32,15 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 th, td { padding: 7px 11px; border: 1px solid var(--soft); text-align: left; vertical-align: top; }
 td.num, th.num { width: 1%; }
 tbody tr:hover { background: var(--sel) !important; }
-.over { color: var(--bad); font-weight: 650; }
+.over { color: var(--bad); font-weight: 650; } .warnv { color: var(--warn); font-weight: 600; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 14px 0 10px; } .btn[aria-pressed=true] { font-weight: 600; border-color: var(--ink); }
+.start { padding: 18px 22px 40px; max-width: 980px; } .start h2:first-of-type { margin-top: 20px; }
 th .ab { display: block; font-weight: 400; font-size: 11.5px; color: var(--muted); }
 thead th, tfoot td { background: var(--chrome); border-color: var(--line); font-weight: 600; white-space: nowrap; }
 tbody tr:nth-child(even) { background: var(--alt); }
 .scroll { overflow-x: auto; }
+/* On a wide screen tables fit, so the page scrolls instead of the table and the column titles can stay in view. */
+@media (min-width: 1000px) { .scroll:not(.wide) { overflow: visible; } .scroll:not(.wide) thead th { position: sticky; top: 0; z-index: 2; box-shadow: 0 1px 0 var(--line); } .sticky thead th:first-child { z-index: 3; } }
 .sticky th:first-child, .sticky td:first-child { position: sticky; left: 0; z-index: 1; border-right: 1px solid var(--line); } /* the name stays while the numbers scroll */
 .sticky tbody td:first-child { background: var(--bg); } .sticky tbody tr:nth-child(even) td:first-child { background: var(--alt); }
 .api table { table-layout: fixed; width: 100%; } .api td { overflow-wrap: anywhere; }
@@ -70,7 +74,7 @@ th.s { cursor: pointer; user-select: none; } th.s:hover { text-decoration: under
 details { margin-top: 10px; font-size: 13px; color: var(--muted); } details dl { display: grid; grid-template-columns: max-content 1fr; gap: 2px 14px; margin: 6px 0 0; } details dt { color: var(--ink); font-weight: 600; } details dd { margin: 0; }
 /* explorer (IDE panes) */
 .ide { height: 100%; display: grid; grid-template-columns: 260px 380px minmax(0, 1fr); }
-.ide > * { min-height: 0; overflow: auto; border-right: 1px solid var(--line); } .ide > *:last-child { border-right: 0; }
+.ide > * { min-height: 0; overflow: auto; border-right: 1px solid var(--line); } .ide > *:last-child { border-right: 0; } .ide > nav { overflow-x: hidden; }
 @media (max-width: 900px) { .ide { grid-template-columns: 1fr; height: auto; } .ide > * { border-right: 0; border-bottom: 1px solid var(--line); max-height: 50vh; } }
 .row { display: flex; gap: 7px; width: 100%; padding: 5px 14px; border: 0; background: none; color: var(--ink); font: inherit; text-align: left; cursor: pointer; align-items: baseline; }
 .row:hover { background: var(--chrome); } .row[aria-current=true] { background: var(--sel); color: var(--selink); }
@@ -217,7 +221,7 @@ const member = s => { // the name inside its class or file
 // inside its package's group the qualifier would only repeat the heading
 const inPkg = c => c.id.startsWith("java:") ? short(c.id) : c.kind === "file" ? short(c.id).split("/").pop() : short(c.id).split(".").pop();
 const loc = (file, line) => file >= 0 ? `${D.files[file]}:${line}` : L("(library)", "(라이브러리)");
-const fname = f => f >= 0 ? D.files[f].replace(/^.*?(src\/(main|test)\/[a-z]+\/)/, "").replace(base.replace(/\./g, "/") + "/", "") : "";
+const fname = f => f >= 0 ? D.files[f].replace(/^.*?(src\/(main|test)\/[a-z]+\/)/, "").replace(base ? base.replace(/\./g, "/") + "/" : "", "") : "";
 const lib = id => { // library group of an external symbol
   if (byFile(id)) { // ts:pkg/@types/node.readFile, ts:lib/std.Array#map, py:lib/fastapi.FastAPI, py:std/os.path.join
     const pth = id.slice(3).split("#")[0];
@@ -451,8 +455,11 @@ function overview() {
     el("p", {}, L("Arrow = depends on. Thickness and number = how many references.", "화살표 = 의존 방향. 굵기와 숫자 = 참조 수."), " ", el("button", { class: "lk", onclick: () => go("deps") }, L("Details", "자세히"))),
     pkgGraph(d, p => { sel.pkg = p; sel.edge = null; go("deps"); }, e => { sel.edge = e.key; sel.pkg = null; go("deps"); }),
     el("h2", {}, L("Checks", "점검")),
-    el("p", {}, L(`${fmt(D.checks.warnings)} warnings (rule violations) and ${fmt(D.checks.notes)} notes (candidates)`, `경고(규칙 위반) ${fmt(D.checks.warnings)}건, 참고(후보) ${fmt(D.checks.notes)}건`),
-      D.checks.rules.filter(r => r.count > 0).length > 0 && ": ", D.checks.rules.filter(r => r.count > 0).slice(0, 6).map((r, i) => [i ? " · " : "", `${ruleText(r.id)[0]} ${fmt(r.count)}`]), " — ", el("button", { class: "lk", onclick: () => go("checks") }, L("open", "열기"))),
+    el("p", {}, L(`${fmt(D.checks.warnings)} warnings (rule violations) and ${fmt(D.checks.notes)} notes (places to review).`, `경고(규칙 위반) ${fmt(D.checks.warnings)}건, 참고(검토할 곳) ${fmt(D.checks.notes)}건.`), " ", el("button", { class: "lk", onclick: () => go("checks") }, L("All checks", "전체 점검"))),
+    D.checks.rules.some(r => r.count > 0) ? el("div", { style: "max-width:760px" }, table([L("Check", "점검 항목"), L("Group", "분류"), L("Kind", "구분"), { t: L("Found", "건수"), num: 1 }],
+      D.checks.rules.filter(r => r.count > 0).map(r => [el("button", { class: "lk", onclick: () => { cs.cat = "all"; cs.q = ""; cs.jump = r.id; go("checks"); } }, ruleText(r.id)[0]),
+        muted(r.category === "security" ? L("security", "보안") : L("quality", "품질")), muted(r.severity === "warning" ? L("warning", "경고") : L("note", "참고")),
+        el("span", { class: r.severity === "warning" ? "over" : null }, fmt(r.count))]))) : el("div", { class: "empty" }, L("Every check passed.", "모든 점검을 통과했습니다.")),
     el("div", { class: "cols" },
       el("div", {}, el("h2", {}, L("Most depended-on classes", "가장 많이 의존받는 클래스")), el("p", {}, L("Number of other classes that reference it (tests excluded).", "이 클래스를 참조하는 다른 클래스 수 (테스트 제외).")),
         table([L("Class", "클래스"), { t: L("Used by", "의존받음"), num: 1 }, { t: L("Uses", "의존함"), num: 1 }], hot.map(([c, n]) => [symBtn(c), n, d.fout.get(c).size]))),
@@ -569,8 +576,8 @@ function metricsView() {
       filter, el("label", { style: "margin-left:6px" }, test, " ", L("include test and generated code", "테스트·생성 코드 포함")), muted(`${fmt(rows.length)} ${L("rows", "행")}`)),
     el("div", { class: "scroll sticky" }, el("table", {},
       el("thead", {}, el("tr", {}, sc.cols.map(([k, t, ab], i) => el("th", { class: "s" + (i ? " num" : ""), tabindex: 0, "aria-sort": k === key ? (dir < 0 ? "descending" : "ascending") : null, onclick: () => { ms.sort[ms.scope] = [k, k === key ? -dir : i ? -1 : 1]; render(); } }, t, k === key ? (dir < 0 ? " ▼" : " ▲") : "", ab && el("span", { class: "ab" }, ab))))),
-      el("tbody", {}, rows.slice(0, 500).map(r => el("tr", {}, sc.cols.map(([k, , , th], i) => el("td", { class: i ? "num" + (th != null && r[k] > th ? " over" : "") : null, style: i ? null : "white-space:nowrap" }, cell(r, k)))))))),
-    el("p", { class: "note" }, el("span", { class: "over" }, L("Red", "빨간 숫자")), L(" = above the check threshold. Click a column title to sort.", " = 점검 기준 초과. 열 제목을 누르면 정렬됩니다.")),
+      el("tbody", {}, rows.slice(0, 500).map(r => el("tr", {}, sc.cols.map(([k, , , th], i) => el("td", { class: i ? "num" + (th != null && r[k] > th ? (r[k] > 2 * th ? " over" : " warnv") : "") : null, style: i ? null : "white-space:nowrap" }, cell(r, k)))))))),
+    el("p", { class: "note" }, el("span", { class: "warnv" }, L("Amber", "주황")), L(" = above the check limit, ", " = 점검 기준 초과, "), el("span", { class: "over" }, L("red", "빨강")), L(" = more than twice the limit. Click a column title to sort.", " = 기준의 2배 초과. 열 제목을 누르면 정렬됩니다.")),
     rows.length > 500 && el("p", { class: "note" }, L(`Showing 500 of ${fmt(rows.length)}. \`rintel metrics --format csv\` exports all.`, `${fmt(rows.length)}행 중 500행만 표시합니다. 전체는 \`rintel metrics --format csv\`로 내보낼 수 있습니다.`)),
     el("details", {}, el("summary", {}, L("Metric definitions", "지표 정의")), el("dl", {}, defs().flatMap(([k, v]) => [el("dt", {}, k), el("dd", {}, v)]))));
 }
@@ -603,7 +610,7 @@ function depsView() {
     (() => { const one = sel.pkg || (d.P.size === 1 ? [...d.P.keys()][0] : null); return one && d.P.get(one) ? inside(d, one) : null; })(),
     el("h2", {}, L("Dependency matrix", "의존성 매트릭스")),
     el("p", {}, L("Row depends on column. Packages are ordered so dependencies fall above the diagonal; a highlighted cell below it goes against that order, which is what a cycle looks like.", "행이 열에 의존합니다. 의존이 대각선 위에 오도록 정렬했고, 대각선 아래에 강조된 칸은 그 순서를 거스르는 의존입니다. 순환이 있으면 여기에 나타납니다.")),
-    el("div", { class: "scroll" }, el("table", { class: "dsm" },
+    el("div", { class: "scroll wide" }, el("table", { class: "dsm" },
       el("thead", {}, el("tr", {}, el("th", { class: "l" }, ""), order.map((p, i) => el("th", { title: plabel(p) }, String(i + 1))))),
       el("tbody", {}, order.map((a, i) => el("tr", {}, el("th", { class: "l" }, `${i + 1}  `, pkgBtn(a)), order.map((b, j) => {
         const e = cell(a, b);
@@ -691,8 +698,21 @@ function codeView(cur) {
       mid.append(el("button", { class: "row mono mrow", "aria-current": m === cur ? "true" : null, onclick: () => go("code/" + encodeURIComponent(m.id)) },
         el("span", { style: "overflow-wrap:anywhere" }, parts(member(m)), m.synth && el("span", { class: "tag" }, m.synth === "lombok" ? "Lombok" : L("implicit", "암시적")), m.type === "field" && el("span", { class: "tag" }, L("field", "필드"))),
         el("span", { class: "num muted" }, m.line || ""), el("span", { class: "num" }, m.type === "field" ? "" : m.in.filter(e => e.rel === "calls").length)));
-  } else mid.append(el("div", { class: "empty", style: "padding:12px" }, L("Pick a class.", "클래스를 고르세요.")));
-  return el("div", { class: "ide" }, tree, mid, el("section", {}, cur ? detail(cur, d) : el("div", { class: "empty", style: "padding:12px" }, L("Pick a symbol on the left, or search above.", "왼쪽에서 심볼을 고르거나 위에서 검색하세요."))));
+  } else mid.append(el("div", { class: "empty", style: "padding:12px 14px" }, L("Members of the chosen class appear here.", "고른 클래스의 멤버가 여기에 나옵니다.")));
+  return el("div", { class: "ide" }, tree, mid, el("section", {}, cur ? detail(cur, d) : startPanel(d)));
+}
+function startPanel(d) { // nothing chosen yet: the places most people open first
+  const hot = d.cls.filter(c => !off(c)).map(c => [c, d.fin.get(c).size]).filter(x => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const called = S.filter(s => !s.ext && (s.type === "method" || s.type === "constructor") && !(s.cls && off(s.cls)))
+    .map(s => [s, s.in.filter(e => e.rel === "calls").length]).filter(x => x[1]).sort((a, b) => b[1] - a[1]).slice(0, 8);
+  const eps = D.endpoints.map(e => [e, byId.get(e.handler)]).filter(x => x[1]).slice(0, 8);
+  return el("div", { class: "start" }, el("h1", {}, L("Structure", "구조")),
+    el("p", {}, L("Open a package on the left, type a name in the search box above, or start from one of these.", "왼쪽에서 패키지를 펼치거나, 위 검색 상자에 이름을 입력하거나, 아래에서 골라 시작하세요.")),
+    el("div", { class: "cols" },
+      el("div", {}, el("h2", {}, L("Most depended-on classes", "가장 많이 의존받는 클래스")), table([L("Class", "클래스"), { t: L("Used by", "의존받음"), num: 1 }], hot.map(([c, n]) => [symBtn(c), n]))),
+      el("div", {}, el("h2", {}, L("Most called methods", "가장 많이 호출되는 메서드")), table([L("Method", "메서드"), { t: L("Calls", "호출"), num: 1 }], called.map(([m, n]) => [symBtn(m), n])))),
+    eps.length > 0 && [el("h2", {}, L("Endpoints", "엔드포인트"), " ", el("button", { class: "lk", style: "font-size:13.5px;font-weight:400", onclick: () => go("api") }, L(`all ${D.endpoints.length}`, `전체 ${D.endpoints.length}개`))),
+      table([{ t: L("Method", "메서드"), w: "84px" }, L("Path", "경로"), L("Handler", "핸들러")], eps.map(([e, h]) => [mono(e.method), mono(e.path), symBtn(h, handlerName(h))]))]);
 }
 function detail(s, d) {
   const isClass = s.type === "class";
@@ -842,6 +862,8 @@ function reach(h) { // repositories reachable through resolved or inferred calls
   }
   return [...found];
 }
+const INLINE = /[#~](GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS|ANY|WS)(_[A-Za-z0-9_]*)?$/;
+const handlerName = h => INLINE.test(h.id) ? member({ id: h.id.replace(INLINE, "") }) + L(" (inline)", " (인라인)") : member(h);
 function apiView() {
   if (!D.endpoints.length) return el("div", { class: "page" }, el("h1", {}, "API"), el("div", { class: "empty" }, L("No REST endpoints found.", "REST 엔드포인트를 찾지 못했습니다.")));
   const groups = new Map(), hasRepos = classes.some(c => c.role === "repository");
@@ -853,7 +875,7 @@ function apiView() {
       el("div", { class: "api" }, table([{ t: L("Method", "메서드"), w: "84px" }, { t: L("Path", "경로"), w: hasRepos ? "24%" : "38%" }, { t: L("Handler", "핸들러"), w: hasRepos ? "30%" : null }, { t: L("Line", "줄"), num: 1, w: "64px" }, ...(hasRepos ? [L("Reaches", "닿는 저장소")] : [])],
         g.es.sort((a, b) => a.e.path.localeCompare(b.e.path) || a.e.method.localeCompare(b.e.method)).map(({ e, h }) => {
           const r = h ? reach(h) : [];
-          const row = [mono(e.method), mono(e.path), h ? symBtn(h, member(h)) : short(e.handler), e.location ? e.location.start_line : h ? h.line : ""];
+          const row = [mono(e.method), mono(e.path), h ? symBtn(h, handlerName(h)) : short(e.handler), e.location ? e.location.start_line : h ? h.line : ""];
           return hasRepos ? [...row, r.length ? r.map((c, i) => [i ? ", " : "", symBtn(c)]) : muted("–")] : row;
         })))]));
 }
@@ -884,35 +906,47 @@ const RULES = () => ({ // id: [title, what it means]; a function so the texts fo
   "untested-class": [L("Classes no test touches", "테스트가 닿지 않는 클래스"), L("No test references the class or any of its members directly.", "클래스나 그 멤버를 직접 참조하는 테스트가 없습니다.")],
 });
 const ruleText = id => RULES()[id] || [id, ""];
+const cs = { cat: "all", q: "", open: new Set(), jump: "" };
 function checksView() {
-  const c = D.checks, by = new Map();
-  for (const f of c.findings) (by.get(f.rule) || by.set(f.rule, []).get(f.rule)).push(f);
-  const hit = c.rules.filter(r => r.count > 0);
+  const c = D.checks, by = new Map(), q = cs.q.trim().toLowerCase();
+  for (const f of c.findings) if (!q || `${f.file || ""} ${short(f.symbol || "")} ${f.message}`.toLowerCase().includes(q)) (by.get(f.rule) || by.set(f.rule, []).get(f.rule)).push(f);
+  const rules = c.rules.filter(r => cs.cat === "all" || (cs.cat === "warning" ? r.severity === "warning" : r.category === cs.cat));
+  const n = r => (by.get(r.id) || []).length, hit = rules.filter(r => n(r) > 0), passed = rules.filter(r => n(r) === 0);
   const lists = r => r.id.endsWith("-cycle") || r.id.startsWith("layer-");
-  const body = r => {
-    const fs = by.get(r.id) || [];
-    if (lists(r)) return table(["#", L("Involved", "관련 항목"), L("Location", "위치")], fs.slice(0, 200).map((f, i) => [i + 1,
+  const body = (r, limit) => {
+    const fs = (by.get(r.id) || []).slice(0, limit);
+    if (lists(r)) return table(["#", L("Involved", "관련 항목"), L("Location", "위치")], fs.map((f, i) => [i + 1,
       mono(f.message.includes(": ") ? f.message.slice(f.message.indexOf(": ") + 2) : f.message), f.file ? mono(`${f.file}:${f.line}`) : ""]));
     const metric = r.threshold > 0;
     return table([L("Symbol", "심볼"), ...(metric ? [{ t: L("Value", "값"), num: 1 }, { t: L("Limit", "기준"), num: 1 }] : []), L("Location", "위치")],
-      fs.slice(0, 300).map(f => { const s = byId.get(f.symbol); return [s ? symBtn(s) : mono(short(f.symbol || "")), ...(metric ? [el("span", { class: "over" }, String(f.value)), String(f.threshold)] : []), mono(`${f.file}:${f.line}`)]; }));
+      fs.map(f => { const s = byId.get(f.symbol); return [s ? symBtn(s) : f.symbol ? mono(short(f.symbol)) : muted("–"), ...(metric ? [el("span", { class: "over" }, String(f.value)), String(f.threshold)] : []), mono(f.file ? `${f.file}:${f.line}` : "")]; }));
   };
-  const jump = id => () => document.getElementById(id).scrollIntoView({ block: "start" });
+  const chip = (k, t, count) => el("button", { class: "btn", "aria-pressed": String(cs.cat === k), onclick: () => { cs.cat = k; render(); } }, t, " ", muted(fmt(count)));
+  const total = f => c.rules.filter(f).reduce((a, r) => a + r.count, 0);
+  const filter = el("input", { type: "search", id: "cfilter", placeholder: L("filter by file or symbol", "파일·심볼로 거르기"), "aria-label": L("filter by file or symbol", "파일·심볼로 거르기"), value: cs.q, style: "width:230px" });
+  filter.addEventListener("input", () => { cs.q = filter.value; const pos = filter.selectionStart; render(); const f = document.querySelector("#cfilter"); if (f) { f.focus(); f.setSelectionRange(pos, pos); } });
+  const jump = id => () => { const t = document.getElementById("chk-" + id); if (t) t.scrollIntoView({ block: "start" }); };
+  if (cs.jump) { const id = cs.jump; cs.jump = ""; setTimeout(jump(id), 0); } // arrived from the overview: go to that rule
+  const FOLD = 12;
   return el("div", { class: "page" }, el("h1", {}, L("Checks", "점검")),
-    el("p", {}, L(`${fmt(c.warnings)} warnings and ${fmt(c.notes)} notes in production code. Warnings break a rule; notes are candidates found with static relations only, where framework, reflection and template calls are invisible. \`rintel check\` gives the same list and fails a build on warnings.`,
-      `운영 코드에서 경고 ${fmt(c.warnings)}건, 참고 ${fmt(c.notes)}건입니다. 경고는 규칙 위반이고, 참고는 정적 관계만으로 찾은 후보입니다(프레임워크·리플렉션·템플릿 호출은 보이지 않습니다). \`rintel check\`가 같은 목록을 내고, 경고가 있으면 빌드를 실패시킵니다.`)),
-    table([L("Check", "점검 항목"), { t: L("Found", "건수"), num: 1 }, L("Kind", "구분"), L("What it means", "의미")], c.rules.map((r, i) => [
-      r.count ? el("button", { class: "lk", onclick: jump("chk" + i) }, ruleText(r.id)[0]) : ruleText(r.id)[0],
-      r.count ? el("span", { class: r.severity === "warning" ? "over" : null, style: r.severity === "warning" ? null : "font-weight:650" }, fmt(r.count)) : muted("0"),
+    el("p", {}, L(`${fmt(c.warnings)} warnings and ${fmt(c.notes)} notes in production code. A warning breaks a rule and fails \`rintel check\`. A note is a place to review: security notes are legitimate calls that matter only with outside input, and the other notes come from static relations, where framework, reflection and template calls are invisible.`,
+      `운영 코드에서 경고 ${fmt(c.warnings)}건, 참고 ${fmt(c.notes)}건입니다. 경고는 규칙 위반이며 \`rintel check\`를 실패시킵니다. 참고는 검토할 곳입니다. 보안 참고는 그 자체로는 정상인 호출이라 외부 입력이 닿을 때만 문제이고, 나머지 참고는 정적 관계만으로 찾아 프레임워크·리플렉션·템플릿 호출이 보이지 않습니다.`)),
+    el("div", { class: "chips" }, chip("all", L("All", "전체"), total(() => true)), chip("security", L("Security", "보안"), total(r => r.category === "security")), chip("quality", L("Quality", "품질"), total(r => r.category === "quality")),
+      chip("warning", L("Warnings only", "경고만"), total(r => r.severity === "warning")), filter),
+    hit.length > 0 ? table([L("Check", "점검 항목"), { t: L("Found", "건수"), num: 1 }, L("Kind", "구분"), L("What it means", "의미")], hit.map(r => [
+      el("button", { class: "lk", onclick: jump(r.id) }, ruleText(r.id)[0]),
+      el("span", { class: r.severity === "warning" ? "over" : null, style: r.severity === "warning" ? null : "font-weight:650" }, fmt(n(r))),
       muted(r.severity === "warning" ? L("warning", "경고") : L("note", "참고")),
-      muted(ruleText(r.id)[1], r.threshold > 0 ? L(` Limit: ${r.threshold}.`, ` 기준: ${r.threshold}.`) : "")])),
-    el("p", { class: "note" }, L(`${hit.length} of ${c.rules.length} checks found something. Details follow, in the same order.`, `${c.rules.length}개 항목 중 ${hit.length}개에서 발견됐습니다. 아래에 같은 순서로 자세한 내용이 이어집니다.`)),
-    c.rules.map((r, i) => r.count > 0 && [el("h2", { id: "chk" + i }, ruleText(r.id)[0], " ", muted(fmt(r.count))), el("p", {}, ruleText(r.id)[1], r.cwe ? muted(` ${r.cwe}`) : ""),
-      D.fixes[r.id] && el("p", {}, el("b", {}, L("How to fix: ", "수정 방법: ")), L(D.fixes[r.id][0], D.fixes[r.id][1])), body(r),
-      (by.get(r.id) || []).length > 300 && el("p", { class: "note" }, L("Showing the first 300; `rintel check --format json` has all.", "앞의 300건만 표시합니다. 전체는 `rintel check --format json`으로 볼 수 있습니다."))]));
+      muted(ruleText(r.id)[1], r.threshold > 0 ? L(` Limit: ${r.threshold}.`, ` 기준: ${r.threshold}.`) : "")]))
+      : el("div", { class: "empty" }, q ? L("Nothing matches the filter.", "거르기 조건에 맞는 항목이 없습니다.") : L("Nothing found.", "발견된 항목이 없습니다.")),
+    passed.length > 0 && !q && el("p", { class: "note" }, el("b", {}, L(`Passed (${passed.length}): `, `통과 (${passed.length}개): `)), passed.map(r => ruleText(r.id)[0]).join(" · ")),
+    hit.map(r => { const all = n(r), open = cs.open.has(r.id) || all <= FOLD;
+      return [el("h2", { id: "chk-" + r.id }, ruleText(r.id)[0], " ", muted(fmt(all))), el("p", {}, ruleText(r.id)[1], r.cwe ? muted(` ${r.cwe}`) : ""),
+        D.fixes[r.id] && el("p", {}, el("b", {}, L("How to fix: ", "수정 방법: ")), L(D.fixes[r.id][0], D.fixes[r.id][1])), body(r, open ? 300 : FOLD),
+        all > FOLD && el("p", { class: "note" }, el("button", { class: "lk", onclick: () => { open ? cs.open.delete(r.id) : cs.open.add(r.id); render(); } }, open ? L("Show fewer", "접기") : L(`Show all ${fmt(all)}`, `${fmt(all)}건 모두 보기`)),
+          open && all > 300 && L(" Showing the first 300; `rintel check --format json` has all.", " 앞의 300건만 표시합니다. 전체는 `rintel check --format json`으로 볼 수 있습니다."))]; }));
 }
 
-// ---------- 6. unresolved ----------
 const MISSING = () => { const o = D.overview; return o.missing_packages && o.missing_packages.length > 0 && el("div", { style: "margin:10px 0;padding:8px 12px;background:var(--warnbg);color:var(--warn)" },
       L(`Most of what is unresolved comes from ${o.missing_packages.length} library packages that are imported but not installed on this machine. Build the project once (Gradle or Maven downloads them) or list the jars in .ri/classpath, then scan again: `,
         `미해석의 대부분은 소스가 import하지만 이 컴퓨터에 설치되지 않은 라이브러리 패키지 ${o.missing_packages.length}개 때문입니다. 프로젝트를 한 번 빌드하거나(Gradle·Maven이 내려받습니다) .ri/classpath에 JAR을 적은 뒤 다시 스캔하세요: `),
@@ -934,6 +968,7 @@ function unresolvedView() {
 
 // ---------- routing: the hash is the state, so back/forward and links to a symbol work ----------
 const tabsDef = () => [["overview", L("Overview", "개요")], ["metrics", L("Metrics", "지표")], ["deps", L("Dependencies", "의존성")], ["code", L("Structure", "구조")], ["api", `API ${D.endpoints.length}`], ["checks", L("Checks", "점검")], ["unresolved", `${L("Unresolved", "미해석")} ${D.unresolved.length}`]];
+let shownTab = "";
 const go = h => { if (location.hash.slice(1) === h) render(); else location.hash = h; };
 function render() {
   const h = decodeURIComponent(location.hash.slice(1)) || "overview";
@@ -955,6 +990,8 @@ function render() {
   main.style.overflow = tab === "code" ? "hidden" : "auto";
   const keep = [...main.querySelectorAll(".ide > *")].map(n => n.scrollTop);
   main.replaceChildren(tab === "code" ? codeView(cur) : view());
+  if (tab !== shownTab) main.scrollTop = 0; // another tab starts at its top; a re-render of the same tab stays put
+  shownTab = tab;
   if (tab === "code") [...main.querySelectorAll(".ide > *")].forEach((n, i) => { if (i < 2 && keep[i]) n.scrollTop = keep[i]; });
   const total = o.resolved_calls + o.unresolved_calls;
   document.getElementById("foot").replaceChildren(
