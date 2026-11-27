@@ -10,21 +10,21 @@
 1. 실행 파일을 설치하고 `PATH`에 있는지 확인합니다(`rintel version`이 버전을 출력해야 합니다).
 
    ```sh
-   go install github.com/spro1/rintel/cmd/rintel@latest
+   go install github.com/spro1/rintel-code/cmd/rintel@latest
    ```
 
 2. Claude Code에서:
 
    ```
-   /plugin install rintel --marketplace spro1/rintel
+   /plugin install rintel --marketplace spro1/rintel-code
    ```
 
-   2.1.275 미만 버전에서는 `/plugin marketplace add spro1/rintel` 후 `/plugin install rintel@rintel`.
+   2.1.275 미만 버전에서는 `/plugin marketplace add spro1/rintel-code` 후 `/plugin install rintel@rintel`.
 
 한 프로젝트에서만 켜려면 터미널에서 `--scope project`로 설치합니다.
 
 ```sh
-claude plugin marketplace add spro1/rintel --scope project
+claude plugin marketplace add spro1/rintel-code --scope project
 claude plugin install rintel@rintel --scope project
 ```
 

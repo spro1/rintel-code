@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/spro1/rintel/actions/workflows/ci.yml"><img src="https://github.com/spro1/rintel/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/spro1/rintel-code/actions/workflows/ci.yml"><img src="https://github.com/spro1/rintel-code/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="license: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/go-1.27%2B-00ADD8.svg" alt="Go 1.27+">
   <img src="https://img.shields.io/badge/analyzes-Java%20%C2%B7%20Go%20%C2%B7%20TypeScript%20%C2%B7%20Python-informational.svg" alt="Java, Go, TypeScript, Python 분석">
@@ -63,11 +63,11 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
 ## 설치
 
 ```sh
-go install github.com/spro1/rintel/cmd/rintel@latest
+go install github.com/spro1/rintel-code/cmd/rintel@latest
 ```
 
 `rintel`이 `$(go env GOPATH)/bin`에 설치됩니다. 이 경로가 `PATH`에 있어야 합니다.
-소스에서 빌드하려면(Go 1.27.4 이상) `git clone https://github.com/spro1/rintel && cd rintel && make build`를
+소스에서 빌드하려면(Go 1.27.4 이상) `git clone https://github.com/spro1/rintel-code && cd rintel && make build`를
 실행합니다.
 
 ## 빠른 시작
@@ -217,7 +217,7 @@ rintel은 **스킬**(어떤 질문에 어떤 명령을 쓰고 결과를 어떻�
 **Claude Code**
 
 ```
-/plugin install rintel --marketplace spro1/rintel
+/plugin install rintel --marketplace spro1/rintel-code
 ```
 
 | 스킬 | 쓰는 때 |
@@ -227,7 +227,7 @@ rintel은 **스킬**(어떤 질문에 어떤 명령을 쓰고 결과를 어떻�
 | `/rintel:security` | 발견 항목을 코드와 대조해 판정하는 보안 검토 |
 
 플러그인은 MCP 서버도 등록하고, 세션을 시작할 때 실행 파일이 없으면 알려 줍니다.
-Claude Code 2.1.275 미만에서는 `/plugin marketplace add spro1/rintel`을 실행한 뒤
+Claude Code 2.1.275 미만에서는 `/plugin marketplace add spro1/rintel-code`을 실행한 뒤
 `/plugin install rintel@rintel`을 실행합니다.
 
 **MCP만 쓰거나 다른 에이전트를 쓸 때**

@@ -6,8 +6,8 @@
     "name": "spro1",
     "url": "https://github.com/spro1"
   },
-  "homepage": "https://github.com/spro1/rintel",
-  "repository": "https://github.com/spro1/rintel",
+  "homepage": "https://github.com/spro1/rintel-code",
+  "repository": "https://github.com/spro1/rintel-code",
   "license": "Apache-2.0",
   "keywords": [
     "static-analysis",

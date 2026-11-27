@@ -6,7 +6,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/spro1/rintel/actions/workflows/ci.yml"><img src="https://github.com/spro1/rintel/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
+  <a href="https://github.com/spro1/rintel-code/actions/workflows/ci.yml"><img src="https://github.com/spro1/rintel-code/actions/workflows/ci.yml/badge.svg" alt="ci"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache--2.0-blue.svg" alt="license: Apache-2.0"></a>
   <img src="https://img.shields.io/badge/go-1.27%2B-00ADD8.svg" alt="Go 1.27+">
   <img src="https://img.shields.io/badge/analyzes-Java%20%C2%B7%20Go%20%C2%B7%20TypeScript%20%C2%B7%20Python-informational.svg" alt="analyzes Java, Go, TypeScript, Python">
@@ -64,11 +64,11 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
 ## Install
 
 ```sh
-go install github.com/spro1/rintel/cmd/rintel@latest
+go install github.com/spro1/rintel-code/cmd/rintel@latest
 ```
 
 This puts `rintel` in `$(go env GOPATH)/bin`; make sure that directory is on your `PATH`.
-To build from source (Go 1.27.4 or newer): `git clone https://github.com/spro1/rintel && cd rintel && make build`.
+To build from source (Go 1.27.4 or newer): `git clone https://github.com/spro1/rintel-code && cd rintel && make build`.
 
 ## Quick start
 
@@ -219,7 +219,7 @@ same data as typed tool calls). Both need the `rintel` binary on `PATH`.
 **Claude Code**
 
 ```
-/plugin install rintel --marketplace spro1/rintel
+/plugin install rintel --marketplace spro1/rintel-code
 ```
 
 | Skill | Use it for |
@@ -229,7 +229,7 @@ same data as typed tool calls). Both need the `rintel` binary on `PATH`.
 | `/rintel:security` | a security review that checks each finding against the code |
 
 The plugin also registers the MCP server and tells you at session start if the binary is missing.
-On Claude Code older than 2.1.275, run `/plugin marketplace add spro1/rintel` and then
+On Claude Code older than 2.1.275, run `/plugin marketplace add spro1/rintel-code` and then
 `/plugin install rintel@rintel`.
 
 **MCP only, or another agent**

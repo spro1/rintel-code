@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go install github.com/spro1/rintel/cmd/rintel@v0.1.0
+      - run: go install github.com/spro1/rintel-code/cmd/rintel@v0.1.0
 
       # Java, TypeScript: 라이브러리가 PC에 있도록 한 번 빌드 (rintel은 아무것도 내려받지 않음)
       # - run: ./gradlew assemble

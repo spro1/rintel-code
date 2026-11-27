@@ -3,7 +3,7 @@
 ## Reporting a vulnerability
 
 Please report privately through GitHub's
-[private vulnerability reporting](https://github.com/spro1/rintel/security/advisories/new), not a public issue.
+[private vulnerability reporting](https://github.com/spro1/rintel-code/security/advisories/new), not a public issue.
 Include the input that triggers the problem and the rintel version (`rintel version`).
 
 ## What rintel promises

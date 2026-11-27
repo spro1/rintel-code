@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: stable
-      - run: go install github.com/spro1/rintel/cmd/rintel@v0.1.0
+      - run: go install github.com/spro1/rintel-code/cmd/rintel@v0.1.0
 
       # Java, TypeScript: build once so the libraries are on the machine (rintel downloads nothing)
       # - run: ./gradlew assemble

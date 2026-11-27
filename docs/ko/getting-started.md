@@ -9,7 +9,7 @@ Python 저장소라면 똑같이 동작합니다.
 ## 1. 설치하고 PC 점검하기
 
 ```sh
-go install github.com/spro1/rintel/cmd/rintel@latest
+go install github.com/spro1/rintel-code/cmd/rintel@latest
 rintel doctor
 ```
 

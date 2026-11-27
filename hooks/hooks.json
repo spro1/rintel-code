@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "command -v rintel >/dev/null 2>&1 || echo 'rintel plugin: the rintel command is not on PATH, so its skills and MCP server cannot run. Install it with: go install github.com/spro1/rintel/cmd/rintel@latest (and make sure $(go env GOPATH)/bin is on PATH), or download a release binary from https://github.com/spro1/rintel. Tell the user this if they ask for something rintel would answer.'",
+            "command": "command -v rintel >/dev/null 2>&1 || echo 'rintel plugin: the rintel command is not on PATH, so its skills and MCP server cannot run. Install it with: go install github.com/spro1/rintel-code/cmd/rintel@latest (and make sure $(go env GOPATH)/bin is on PATH), or download a release binary from https://github.com/spro1/rintel-code. Tell the user this if they ask for something rintel would answer.'",
             "timeout": 5
           }
         ]

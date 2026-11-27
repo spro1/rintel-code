@@ -10,21 +10,21 @@ affects, which findings are real.
 1. Install the binary and make sure it is on `PATH` (`rintel version` should print a version).
 
    ```sh
-   go install github.com/spro1/rintel/cmd/rintel@latest
+   go install github.com/spro1/rintel-code/cmd/rintel@latest
    ```
 
 2. In Claude Code:
 
    ```
-   /plugin install rintel --marketplace spro1/rintel
+   /plugin install rintel --marketplace spro1/rintel-code
    ```
 
-   On versions older than 2.1.275: `/plugin marketplace add spro1/rintel`, then `/plugin install rintel@rintel`.
+   On versions older than 2.1.275: `/plugin marketplace add spro1/rintel-code`, then `/plugin install rintel@rintel`.
 
 To enable it for one project only, run the install with `--scope project` from the command line:
 
 ```sh
-claude plugin marketplace add spro1/rintel --scope project
+claude plugin marketplace add spro1/rintel-code --scope project
 claude plugin install rintel@rintel --scope project
 ```
 

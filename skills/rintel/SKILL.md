@@ -23,8 +23,8 @@ repository and uses no network, except `check --vulns`.
 ## Before you start
 
 - Run it from anywhere inside the repository. The index refreshes by itself; there is no separate scan step.
-- If the `rintel` command is missing, tell the user to install it: `go install github.com/spro1/rintel/cmd/rintel@latest`
-  (or a release binary from https://github.com/spro1/rintel). Do not fall back to guessing from grep without saying so.
+- If the `rintel` command is missing, tell the user to install it: `go install github.com/spro1/rintel-code/cmd/rintel@latest`
+  (or a release binary from https://github.com/spro1/rintel-code). Do not fall back to guessing from grep without saying so.
 - `rintel doctor` shows which languages can be analyzed on this machine (Java needs a JDK, TypeScript needs Node,
   Python needs python3; Go needs nothing).
 - If the rintel MCP tools are available (`get_neighbors`, `analyze_impact`, `get_checks`, ...), they return the same

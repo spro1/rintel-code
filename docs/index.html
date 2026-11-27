@@ -40,21 +40,21 @@ footer { border-top: 1px solid var(--line); margin-top: 80px; color: var(--muted
   <strong>rintel</strong>
   <nav>
     <a href="demo/petclinic.html">Live report</a>
-    <a href="https://github.com/spro1/rintel/tree/main/docs#readme">Guides</a>
-    <a href="https://github.com/spro1/rintel">GitHub</a>
+    <a href="https://github.com/spro1/rintel-code/tree/main/docs#readme">Guides</a>
+    <a href="https://github.com/spro1/rintel-code">GitHub</a>
     <a href="ko.html">한국어</a>
   </nav>
 </div></header>
 <main class="wrap">
   <h1>Know what your change touches before you push it.</h1>
   <p class="lead">rintel reads a repository once and answers the questions text search gets wrong: who calls this, what breaks if it changes, which tests cover it, and what is insecure. It runs locally and never executes the code it reads.</p>
-  <pre><code>go install github.com/spro1/rintel/cmd/rintel@latest
+  <pre><code>go install github.com/spro1/rintel-code/cmd/rintel@latest
 cd your-repository
 rintel report --open</code></pre>
   <div class="actions">
     <a class="btn main" href="demo/petclinic.html">Open a live report</a>
-    <a class="btn" href="https://github.com/spro1/rintel/blob/main/docs/getting-started.md">Getting started</a>
-    <a class="btn" href="https://github.com/spro1/rintel">Source on GitHub</a>
+    <a class="btn" href="https://github.com/spro1/rintel-code/blob/main/docs/getting-started.md">Getting started</a>
+    <a class="btn" href="https://github.com/spro1/rintel-code">Source on GitHub</a>
   </div>
   <figure>
     <a href="demo/petclinic.html"><img class="shot" src="img/structure.png" alt="rintel report: the callers of a repository method, grouped by file" width="1440" height="760"></a>
@@ -92,11 +92,11 @@ Tests that reach the change (13)
 
   <h2>For coding agents</h2>
   <p>A Claude Code plugin adds three skills and an MCP server, so the agent checks the real call graph instead of guessing from grep.</p>
-  <pre><code>/plugin install rintel --marketplace spro1/rintel</code></pre>
+  <pre><code>/plugin install rintel --marketplace spro1/rintel-code</code></pre>
   <ul class="plain"><li><code>rintel</code>: who calls this, where is it used, is it safe to delete</li><li><code>/rintel:impact</code>: what a change affects and which tests to run</li><li><code>/rintel:security</code>: a security review that checks each finding against the code</li><li>Any MCP client can use the server: <code>rintel mcp</code></li></ul>
 
   <h2>Guides</h2>
-  <ul class="plain"><li><a href="https://github.com/spro1/rintel/blob/main/docs/getting-started.md">Getting started</a>: install, first scan, first answers</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/code-review.md">Review a change</a>: impact, tests to run, safe deletion</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ci.md">Use it in CI</a>: a quality and security gate, SARIF</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/claude-code.md">Use it from Claude Code</a>: the plugin, skills and MCP server</li></ul>
+  <ul class="plain"><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/getting-started.md">Getting started</a>: install, first scan, first answers</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/code-review.md">Review a change</a>: impact, tests to run, safe deletion</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/ci.md">Use it in CI</a>: a quality and security gate, SARIF</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/claude-code.md">Use it from Claude Code</a>: the plugin, skills and MCP server</li></ul>
 
   <h2>Languages</h2>
   <p>Java (Spring, Lombok), Go, TypeScript and JavaScript (React, Vue), and Python. Each is resolved with its own toolchain: a JDK, the Go toolchain, Node.js with a bundled TypeScript compiler, and python3.</p>

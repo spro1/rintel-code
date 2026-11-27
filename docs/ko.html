@@ -40,21 +40,21 @@ footer { border-top: 1px solid var(--line); margin-top: 80px; color: var(--muted
   <strong>rintel</strong>
   <nav>
     <a href="demo/petclinic.html">보고서 직접 보기</a>
-    <a href="https://github.com/spro1/rintel/tree/main/docs#readme">가이드</a>
-    <a href="https://github.com/spro1/rintel">GitHub</a>
+    <a href="https://github.com/spro1/rintel-code/tree/main/docs#readme">가이드</a>
+    <a href="https://github.com/spro1/rintel-code">GitHub</a>
     <a href="index.html">English</a>
   </nav>
 </div></header>
 <main class="wrap">
   <h1>푸시하기 전에, 내 변경이 어디에 닿는지 확인하세요.</h1>
   <p class="lead">rintel은 저장소를 한 번 읽고, 텍스트 검색으로는 틀리기 쉬운 질문에 답합니다. 누가 이걸 호출하는지, 바꾸면 무엇이 깨지는지, 어떤 테스트가 덮고 있는지, 무엇이 위험한지. 로컬에서만 돌고, 읽는 코드를 실행하지 않습니다.</p>
-  <pre><code>go install github.com/spro1/rintel/cmd/rintel@latest
+  <pre><code>go install github.com/spro1/rintel-code/cmd/rintel@latest
 cd your-repository
 rintel report --open</code></pre>
   <div class="actions">
     <a class="btn main" href="demo/petclinic.html">보고서 직접 열어 보기</a>
-    <a class="btn" href="https://github.com/spro1/rintel/blob/main/docs/ko/getting-started.md">시작하기</a>
-    <a class="btn" href="https://github.com/spro1/rintel">GitHub 소스</a>
+    <a class="btn" href="https://github.com/spro1/rintel-code/blob/main/docs/ko/getting-started.md">시작하기</a>
+    <a class="btn" href="https://github.com/spro1/rintel-code">GitHub 소스</a>
   </div>
   <figure>
     <a href="demo/petclinic.html"><img class="shot" src="img/structure.png" alt="rintel 보고서: 메서드를 호출하는 곳을 파일별로 묶은 화면" width="1440" height="760"></a>
@@ -92,11 +92,11 @@ Tests that reach the change (13)
 
   <h2>코딩 에이전트에서</h2>
   <p>Claude Code 플러그인이 스킬 세 개와 MCP 서버를 추가합니다. 에이전트가 grep으로 추측하지 않고 실제 호출 관계를 확인합니다.</p>
-  <pre><code>/plugin install rintel --marketplace spro1/rintel</code></pre>
+  <pre><code>/plugin install rintel --marketplace spro1/rintel-code</code></pre>
   <ul class="plain"><li><code>rintel</code>: 누가 호출하나, 어디서 쓰이나, 지워도 되나</li><li><code>/rintel:impact</code>: 변경이 미치는 범위와 돌릴 테스트</li><li><code>/rintel:security</code>: 발견 항목을 코드와 대조해 판정하는 보안 검토</li><li>MCP를 지원하는 다른 에이전트도 쓸 수 있습니다: <code>rintel mcp</code></li></ul>
 
   <h2>가이드</h2>
-  <ul class="plain"><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/getting-started.md">시작하기</a>: 설치, 첫 스캔, 첫 답</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/code-review.md">변경 검토</a>: 영향 범위, 돌릴 테스트, 안전한 삭제</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/ci.md">CI에서 쓰기</a>: 품질·보안 게이트, SARIF</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/claude-code.md">Claude Code에서 쓰기</a>: 플러그인, 스킬, MCP 서버</li></ul>
+  <ul class="plain"><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/ko/getting-started.md">시작하기</a>: 설치, 첫 스캔, 첫 답</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/ko/code-review.md">변경 검토</a>: 영향 범위, 돌릴 테스트, 안전한 삭제</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/ko/ci.md">CI에서 쓰기</a>: 품질·보안 게이트, SARIF</li><li><a href="https://github.com/spro1/rintel-code/blob/main/docs/ko/claude-code.md">Claude Code에서 쓰기</a>: 플러그인, 스킬, MCP 서버</li></ul>
 
   <h2>지원 언어</h2>
   <p>Java(Spring, Lombok), Go, TypeScript·JavaScript(React, Vue), Python. 각 언어를 그 언어의 도구로 해석합니다: JDK, Go 툴체인, Node.js와 내장 TypeScript 컴파일러, python3.</p>

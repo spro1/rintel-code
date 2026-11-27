@@ -9,7 +9,7 @@ Python repository works the same way.
 ## 1. Install and check the machine
 
 ```sh
-go install github.com/spro1/rintel/cmd/rintel@latest
+go install github.com/spro1/rintel-code/cmd/rintel@latest
 rintel doctor
 ```
 
