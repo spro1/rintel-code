@@ -1242,3 +1242,29 @@ func TestMCPFirstScan(t *testing.T) {
 		t.Errorf("another error must pass through without a scan: %v, scans %d", err, scans)
 	}
 }
+
+func TestHostileNamesAndLinks(t *testing.T) {
+	if got := printable("a\x1b[2Jb\u202Ec\n"); got != "a?[2Jb?c?" {
+		t.Errorf("printable = %q", got)
+	}
+	l := irLine{ID: "x\x1b[31m", Text: "ok", Attrs: json.RawMessage(`{"kind":"class","annotations":[{"name":"A\u001b[2J"}]}`)}
+	l.clean()
+	if l.ID != "x?[31m" || strings.Contains(string(l.Attrs), `\u001b`) || !strings.Contains(string(l.Attrs), `A?[2J`) {
+		t.Errorf("clean: id %q attrs %s", l.ID, l.Attrs)
+	}
+
+	// A link inside the repository to a file outside it is never read: not for secrets, not for dependencies.
+	outside, dir := t.TempDir(), t.TempDir()
+	os.WriteFile(filepath.Join(outside, "private.env"), []byte("API_KEY=abcd1234efgh5678\n"), 0o644)
+	os.WriteFile(filepath.Join(outside, "reqs.txt"), []byte("internal-corp-pkg==9.9.9\n"), 0o644)
+	if os.Symlink(filepath.Join(outside, "private.env"), filepath.Join(dir, ".env")) != nil {
+		t.Skip("no symlinks here")
+	}
+	os.Symlink(filepath.Join(outside, "reqs.txt"), filepath.Join(dir, "requirements.txt"))
+	if fs := securityFindings(dir, []string{".env"}); len(fs) != 0 {
+		t.Errorf("read a secret through a link: %+v", fs)
+	}
+	if deps := pinnedDeps(dir, &Config{}); len(deps) != 0 {
+		t.Errorf("read dependencies through a link: %+v", deps)
+	}
+}

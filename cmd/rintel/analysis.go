@@ -332,6 +332,7 @@ type CheckResult struct {
 	Rules        []RuleSummary `json:"rules" jsonschema:"every enabled rule with how many findings it produced"`
 	Findings     []Finding     `json:"findings" jsonschema:"production code only; grouped by rule, worst first"`
 	Dependencies *DepCheck     `json:"dependency_check,omitempty" jsonschema:"present when known vulnerabilities in dependencies were looked up"`
+	Disabled     []string      `json:"disabled,omitempty" jsonschema:"rules switched off in .ri/config.json: their findings are not in this result"`
 	Warnings     int           `json:"warnings"`
 	Notes        int           `json:"notes"`
 }
@@ -411,7 +412,7 @@ func (q *Q) Checks() (*CheckResult, error) {
 	if err != nil {
 		return nil, err
 	}
-	r := &CheckResult{Scan: si, Rules: []RuleSummary{}, Findings: []Finding{}}
+	r := &CheckResult{Scan: si, Rules: []RuleSummary{}, Findings: []Finding{}, Disabled: cfg.Disable}
 	by := map[string][]Finding{}
 	add := func(rule, symbol, file string, line int, value, threshold float64, msg string) {
 		sev := "warning"

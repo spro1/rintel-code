@@ -119,7 +119,12 @@ func findRoot(dir string) string {
 }
 
 func die(code int, msg any) {
-	fmt.Fprintln(os.Stderr, "rintel:", msg)
+	// An error can quote a file name, a config key or an argument: keep it from driving the terminal.
+	lines := strings.Split(fmt.Sprint(msg), "\n")
+	for i := range lines {
+		lines[i] = printable(lines[i])
+	}
+	fmt.Fprintln(os.Stderr, "rintel:", strings.Join(lines, "\n"))
 	if err, ok := msg.(error); ok && damaged(err) {
 		fmt.Fprintln(os.Stderr, tr("The index file is damaged. It is only a cache: delete the .ri/cache directory and run again.", "인덱스 파일이 손상됐습니다. 캐시일 뿐이니 .ri/cache 디렉터리를 지우고 다시 실행하세요."))
 	}
@@ -861,7 +866,7 @@ func printStats(o *Overview) {
 			"\n힌트: 일부 의존성이 설치되어 있지 않습니다 (Go: `go mod download`, TypeScript/JavaScript: `npm install`). 설치한 뒤 다시 스캔하세요."))
 	}
 	for _, w := range o.Warnings {
-		fmt.Println(tr("\nWarning: ", "\n경고: ") + w)
+		fmt.Println(tr("\nWarning: ", "\n경고: ") + printable(w))
 	}
 }
 

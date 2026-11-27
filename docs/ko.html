@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>rintel: Repository Intelligence</title>
+<meta name="description" content="누가 무엇을 호출하는지, 변경이 무엇에 영향을 주는지, 무엇을 고쳐야 하는지 답하는 정적 분석 도구. Java, Go, TypeScript/JavaScript, Python 지원.">
+<style>
+:root { --bg:#fff; --alt:#f6f7f9; --ink:#1b1f24; --muted:#4f5861; --line:#c9cdd3; --link:#0f47ad; --code:#f3f4f6; }
+@media (prefers-color-scheme: dark) { :root { --bg:#15171a; --alt:#1b1e22; --ink:#eceef1; --muted:#aab2bc; --line:#3d434a; --link:#93baff; --code:#1e2125; } }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.6 -apple-system, "Segoe UI", "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+a { color: var(--link); }
+.wrap { max-width: 980px; margin: 0 auto; padding: 0 24px; }
+header { border-bottom: 1px solid var(--line); }
+header .wrap { display: flex; flex-wrap: wrap; gap: 8px 22px; align-items: center; padding-top: 14px; padding-bottom: 14px; }
+header strong { font-size: 18px; } header nav { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-left: auto; font-size: 15px; }
+h1 { font-size: 34px; line-height: 1.25; margin: 56px 0 12px; font-weight: 700; max-width: 24ch; }
+.lead { font-size: 18px; color: var(--muted); max-width: 62ch; margin: 0 0 26px; }
+h2 { font-size: 22px; margin: 64px 0 14px; font-weight: 650; } h2 + p { color: var(--muted); margin: -6px 0 18px; max-width: 70ch; }
+pre, code { font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size: 14px; }
+pre { background: var(--code); border: 1px solid var(--line); padding: 14px 16px; overflow-x: auto; margin: 0 0 14px; line-height: 1.55; }
+code { background: var(--code); padding: 1px 5px; } pre code { background: none; padding: 0; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 0 0 36px; }
+.btn { display: inline-block; padding: 9px 16px; border: 1px solid var(--line); color: var(--ink); text-decoration: none; font-weight: 600; font-size: 15px; }
+.btn.main { background: var(--ink); color: var(--bg); border-color: var(--ink); } .btn:hover { border-color: var(--ink); }
+img.shot { display: block; width: 100%; height: auto; border: 1px solid var(--line); }
+figure { margin: 0; } figcaption { color: var(--muted); font-size: 14px; margin-top: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; } th, td { text-align: left; padding: 9px 12px; border: 1px solid var(--line); vertical-align: top; }
+th { background: var(--alt); font-weight: 600; } td code { white-space: nowrap; }
+.scroll { overflow-x: auto; }
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(400px, 100%), 1fr)); gap: 22px 40px; }
+.grid h3 { font-size: 17px; margin: 0 0 4px; } .grid p { margin: 0; color: var(--muted); }
+ul.plain { margin: 0; padding-left: 20px; } ul.plain li { margin: 4px 0; }
+footer { border-top: 1px solid var(--line); margin-top: 80px; color: var(--muted); font-size: 14px; } footer .wrap { padding-top: 22px; padding-bottom: 40px; }
+</style>
+</head>
+<body>
+<header><div class="wrap">
+  <strong>rintel</strong>
+  <nav>
+    <a href="demo/petclinic.html">보고서 직접 보기</a>
+    <a href="https://github.com/spro1/rintel/tree/main/docs#readme">가이드</a>
+    <a href="https://github.com/spro1/rintel">GitHub</a>
+    <a href="index.html">English</a>
+  </nav>
+</div></header>
+<main class="wrap">
+  <h1>푸시하기 전에, 내 변경이 어디에 닿는지 확인하세요.</h1>
+  <p class="lead">rintel은 저장소를 한 번 읽고, 텍스트 검색으로는 틀리기 쉬운 질문에 답합니다. 누가 이걸 호출하는지, 바꾸면 무엇이 깨지는지, 어떤 테스트가 덮고 있는지, 무엇이 위험한지. 로컬에서만 돌고, 읽는 코드를 실행하지 않습니다.</p>
+  <pre><code>go install github.com/spro1/rintel/cmd/rintel@latest
+cd your-repository
+rintel report --open</code></pre>
+  <div class="actions">
+    <a class="btn main" href="demo/petclinic.html">보고서 직접 열어 보기</a>
+    <a class="btn" href="https://github.com/spro1/rintel/blob/main/docs/ko/getting-started.md">시작하기</a>
+    <a class="btn" href="https://github.com/spro1/rintel">GitHub 소스</a>
+  </div>
+  <figure>
+    <a href="demo/petclinic.html"><img class="shot" src="img/structure.png" alt="rintel 보고서: 메서드를 호출하는 곳을 파일별로 묶은 화면" width="1440" height="760"></a>
+    <figcaption>spring-petclinic을 분석한 보고서입니다. 그림을 누르면 직접 열어 써 볼 수 있습니다.</figcaption>
+  </figure>
+
+  <h2>무엇을 물어볼 수 있나</h2>
+  <p>터미널, CI, 코딩 에이전트에서 씁니다. 추정이라고 표시되지 않은 답은 모두 정적 분석으로 확인한 사실입니다.</p>
+  <div class="scroll"><table>
+    <tr><th>질문</th><th>명령</th></tr>
+    <tr><td>누가 이걸 호출하나?</td><td><code>rintel callers UserService.createUser</code></td></tr><tr><td>이 타입이나 필드는 어디서 쓰이나?</td><td><code>rintel refs UserDto</code></td></tr><tr><td>내 변경이 어디에 영향을 주나? 어떤 테스트를 돌려야 하나?</td><td><code>rintel impact --base origin/main</code></td></tr><tr><td>REST 엔드포인트는 뭐가 있고 무엇이 처리하나?</td><td><code>rintel api</code></td></tr><tr><td>보안이나 구조에 문제가 있나?</td><td><code>rintel check</code></td></tr><tr><td>의존성에 알려진 취약점이 있나?</td><td><code>rintel check --vulns</code></td></tr><tr><td>복잡한 곳은 어디인가?</td><td><code>rintel metrics method --top 20</code></td></tr><tr><td>패키지들은 서로 어떻게 의존하나?</td><td><code>rintel deps</code></td></tr>
+  </table></div>
+
+  <h2>무엇이 다른가</h2>
+  <div class="grid"><div><h3>로컬에서만 돌고, 아무것도 실행하지 않습니다</h3><p>소스는 PC 밖으로 나가지 않고, 저장소의 빌드 도구·어노테이션 프로세서·패키지 스크립트를 실행하지 않고, 심볼릭 링크를 따라가지 않습니다. 신뢰할 수 없는 코드에 돌릴 수 있도록 만들었습니다.</p></div><div><h3>모든 답에 근거가 붙습니다</h3><p>사실에는 표시가 없습니다. 추정에는 사용한 규칙 이름이 붙습니다. 분석이 보지 못한 곳은 사유와 함께 기록하므로 &quot;없음&quot;과 &quot;못 봄&quot;을 혼동하지 않습니다.</p></div><div><h3>발견 항목마다 수정 방법이 있습니다</h3><p>보안·품질 규칙 22개. 해당하는 CWE 번호와 무엇을 바꿔야 하는지를 함께 알려 줍니다.</p></div><div><h3>인덱스 하나, 쓰는 방법 셋</h3><p>명령어, 코딩 에이전트용 MCP 서버와 스킬, 오프라인에서 열리는 HTML 보고서 한 장.</p></div></div>
+
+  <h2>변경 하나를 설명하면</h2>
+  <p>명령 하나로 diff가 그것에 의존하는 코드, 거기에 닿는 엔드포인트, 돌려야 할 테스트로 바뀝니다.</p>
+  <pre><code>$ rintel impact
+Compared with HEAD: 1 files changed, 1 symbols changed, 4 affected, 3 endpoints, 13 tests reach it.
+
+Changed (1)
+  Owner.addPet(Pet)  owner/Owner.java:100
+
+Affected (4)
+  PetController.initCreationForm(Owner,ModelMap)     1 step(s) away
+  PetController.processCreationForm(Owner,Pet,...)   1 step(s) away
+  ...
+Endpoints (3)
+  POST /owners/{ownerId}/pets/new
+  ...
+Tests that reach the change (13)
+  OwnerTests.addPetAddsPersistedPet()                1 step(s) away
+  ...</code></pre>
+
+  <h2>코딩 에이전트에서</h2>
+  <p>Claude Code 플러그인이 스킬 세 개와 MCP 서버를 추가합니다. 에이전트가 grep으로 추측하지 않고 실제 호출 관계를 확인합니다.</p>
+  <pre><code>/plugin install rintel --marketplace spro1/rintel</code></pre>
+  <ul class="plain"><li><code>rintel</code>: 누가 호출하나, 어디서 쓰이나, 지워도 되나</li><li><code>/rintel:impact</code>: 변경이 미치는 범위와 돌릴 테스트</li><li><code>/rintel:security</code>: 발견 항목을 코드와 대조해 판정하는 보안 검토</li><li>MCP를 지원하는 다른 에이전트도 쓸 수 있습니다: <code>rintel mcp</code></li></ul>
+
+  <h2>가이드</h2>
+  <ul class="plain"><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/getting-started.md">시작하기</a>: 설치, 첫 스캔, 첫 답</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/code-review.md">변경 검토</a>: 영향 범위, 돌릴 테스트, 안전한 삭제</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/ci.md">CI에서 쓰기</a>: 품질·보안 게이트, SARIF</li><li><a href="https://github.com/spro1/rintel/blob/main/docs/ko/claude-code.md">Claude Code에서 쓰기</a>: 플러그인, 스킬, MCP 서버</li></ul>
+
+  <h2>지원 언어</h2>
+  <p>Java(Spring, Lombok), Go, TypeScript·JavaScript(React, Vue), Python. 각 언어를 그 언어의 도구로 해석합니다: JDK, Go 툴체인, Node.js와 내장 TypeScript 컴파일러, python3.</p>
+</main>
+<footer><div class="wrap">Apache-2.0. 데모 보고서는 <a href="https://github.com/spring-projects/spring-petclinic">spring-petclinic</a>(Apache-2.0)을 분석한 것으로, 심볼 이름과 파일 경로만 담고 소스 코드는 없습니다.</div></footer>
+</body>
+</html>

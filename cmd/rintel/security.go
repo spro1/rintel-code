@@ -1,7 +1,6 @@
 package main
 
 import (
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -156,8 +155,8 @@ func securityFindings(root string, paths []string) []Finding {
 		if lang == "" || testPath.MatchString(path) || generatedPath.MatchString(path) {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(path)))
-		if err != nil || len(b) > 2<<20 { // gone since the scan, or too large to be hand-written
+		b, ok := readRegular(root, path, 2<<20) // not a link; gone since the scan or too large to be hand-written: skipped
+		if !ok {
 			continue
 		}
 		lower := strings.ToLower(string(b))

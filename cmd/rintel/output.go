@@ -151,6 +151,9 @@ func writeChecks(w io.Writer, c *CheckResult) {
 			fmt.Fprintf(w, "  %s%s\n", at, f.Message)
 		}
 	}
+	if len(c.Disabled) > 0 { // a gate that was switched off should not look like a gate that passed
+		fmt.Fprintf(w, tr("\nswitched off in .ri/config.json: %s\n", "\n.ri/config.json에서 끈 규칙: %s\n"), strings.Join(c.Disabled, ", "))
+	}
 	passed := 0
 	for _, r := range c.Rules {
 		if r.Count == 0 {

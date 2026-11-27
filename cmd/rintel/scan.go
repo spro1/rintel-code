@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"database/sql"
 	_ "embed"
@@ -18,6 +19,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 //go:embed adapter/Adapter.java
@@ -113,6 +115,12 @@ func walk(root string, fn func(rel string, info fs.FileInfo) error) error {
 	return filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
+		}
+		if d.Name() != printable(d.Name()) { // a name made to rewrite the terminal or hide its real spelling
+			if d.IsDir() {
+				return filepath.SkipDir
+			}
+			return nil
 		}
 		if d.IsDir() {
 			name, parent := d.Name(), filepath.Dir(p)
@@ -215,6 +223,66 @@ type irLine struct {
 	Relation, Evidence, Rule     string
 	Text, Reason                 string
 	Lines, Code, Comment, Blank  int
+}
+
+// printable replaces control characters and text-direction overrides. Names and strings read from a repository are
+// printed to terminals and handed to agents, so they must not be able to move the cursor, clear the screen, or show
+// a different spelling than the bytes they are made of.
+func printable(s string) string {
+	bad := func(r rune) bool {
+		return unicode.IsControl(r) || (r >= 0x202A && r <= 0x202E) || (r >= 0x2066 && r <= 0x2069)
+	}
+	if strings.IndexFunc(s, bad) < 0 {
+		return s
+	}
+	return strings.Map(func(r rune) rune {
+		if bad(r) {
+			return '?'
+		}
+		return r
+	}, s)
+}
+
+func (l *irLine) clean() {
+	for _, f := range []*string{&l.ID, &l.Parent, &l.File, &l.From, &l.To, &l.Via, &l.Rule, &l.Text, &l.Reason} {
+		*f = printable(*f)
+	}
+	// Attributes are JSON: only decode them when an escape or a direction mark could be inside.
+	if a := l.Attrs; bytes.Contains(a, []byte(`\u`)) || bytes.Contains(a, []byte("\xe2\x80")) || bytes.Contains(a, []byte("\xe2\x81")) {
+		var v any
+		if json.Unmarshal(a, &v) == nil {
+			if b, err := json.Marshal(cleanJSON(v)); err == nil {
+				l.Attrs = b
+			}
+		}
+	}
+}
+
+func cleanJSON(v any) any {
+	switch x := v.(type) {
+	case string:
+		return printable(x)
+	case []any:
+		for i := range x {
+			x[i] = cleanJSON(x[i])
+		}
+	case map[string]any:
+		for k, e := range x {
+			x[k] = cleanJSON(e)
+		}
+	}
+	return v
+}
+
+// readRegular reads a file of the repository, but never through a symbolic link: a link can point outside the
+// repository, and nothing outside it is rintel's to read.
+func readRegular(root, rel string, limit int64) ([]byte, bool) {
+	p := filepath.Join(root, filepath.FromSlash(rel))
+	if info, err := os.Lstat(p); err != nil || !info.Mode().IsRegular() || info.Size() > limit {
+		return nil, false
+	}
+	b, err := os.ReadFile(p)
+	return b, err == nil
 }
 
 func runAdapter(root string, roots, cp, emit []string) (lines []irLine, err error) {
@@ -532,6 +600,9 @@ func scanRound(root string, db *sql.DB, full bool, round int) (*ScanResult, erro
 				}
 				ir = append(ir, lines...)
 			}
+		}
+		for i := range ir {
+			ir[i].clean()
 		}
 		return ir, nil
 	}

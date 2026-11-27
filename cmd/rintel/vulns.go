@@ -45,7 +45,9 @@ func repoFiles(root string) []string {
 	}
 	if s := gitOut(root, "ls-files"); s != "" {
 		for _, rel := range strings.Split(s, "\n") {
-			keep(rel)
+			if rel == printable(rel) && !strings.HasPrefix(rel, "\"") { // git quotes names with unusual bytes
+				keep(rel)
+			}
 		}
 		return out
 	}
@@ -88,8 +90,8 @@ func pinnedDeps(root string, cfg *Config) []pinned {
 		if (name != "go.mod" && name != "package-lock.json" && !lock && !req) || cfg.excluded(rel) {
 			continue
 		}
-		b, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
-		if err != nil || len(b) > 32<<20 {
+		b, ok := readRegular(root, rel, 32<<20)
+		if !ok {
 			continue
 		}
 		switch {
@@ -140,7 +142,7 @@ func pinnedDeps(root string, cfg *Config) []pinned {
 		if (name != "pom.xml" && name != "build.gradle" && name != "build.gradle.kts") || cfg.excluded(rel) {
 			continue
 		}
-		b, _ := os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+		b, _ := readRegular(root, rel, 32<<20)
 		coord := gradleDep
 		if name == "pom.xml" {
 			coord = pomCoord
@@ -294,7 +296,8 @@ func vulnFindings(deps []pinned) ([]Finding, error) {
 			if fixed != "" {
 				msg += " (fixed in " + fixed + ")"
 			}
-			out = append(out, Finding{Rule: "vulnerable-dependency", Severity: "warning", File: d.file, Line: d.line, Message: msg, CWE: "CWE-1395"})
+			// names come from the repository's manifests and the summary from the network: neither may drive the terminal
+			out = append(out, Finding{Rule: "vulnerable-dependency", Severity: "warning", File: d.file, Line: d.line, Message: printable(msg), CWE: "CWE-1395"})
 		}
 	}
 	return out, nil

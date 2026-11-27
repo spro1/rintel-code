@@ -29,6 +29,8 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
   ...
 ```
 
+**New here?** Start with the [guides](docs/README.md): [getting started](docs/getting-started.md), [reviewing a change](docs/code-review.md), [CI](docs/ci.md), [Claude Code](docs/claude-code.md). Changes are in the [changelog](CHANGELOG.md).
+
 ## Contents
 
 - [Why rintel](#why-rintel)
@@ -48,8 +50,9 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
 ## Why rintel
 
 - **Local and inert.** Nothing leaves the machine and nothing from the repository runs: no build tool, no
-  annotation processor, no `go list`, nothing from `node_modules`, no Python import. It is safe to point at code
-  you do not trust. The one network feature, `check --vulns`, is off until you ask for it.
+  annotation processor, no `go list`, nothing from `node_modules`, no Python import. Symbolic links are not
+  followed. It is built to be pointed at code you do not trust; [SECURITY.md](SECURITY.md) says exactly what that
+  covers. The one network feature, `check --vulns`, is off until you ask for it.
 - **Evidence on every answer.** A fact read from the code is unmarked. A guess names the rule that made it. A
   place analysis could not see through is recorded as *unresolved* with a reason, so an empty answer can be told
   apart from a blind spot.
@@ -119,6 +122,7 @@ There is no separate scan step. Every command refreshes the index when files cha
   (TypeScript, Python: file), or a full id. A typo gets a suggestion.
 - **Output**: `--format json` everywhere, `--format csv` for metrics. JSON and MCP responses share one schema.
 - **Language**: `--lang en|ko`, or `RINTEL_LANG`, else the system locale.
+- **Switched-off rules** are listed at the end of `rintel check`, so a disabled gate does not look like a passed one.
 - **Other flags**: `-C <dir>` sets the repository root; `--no-scan` answers from the existing index.
 - **Exit codes**: 0 ok, 1 symbol not found or check failed, 2 usage error, 3 analysis error.
 
@@ -152,7 +156,8 @@ rintel impact --base origin/main --format md   # a pull-request comment
 A **warning** fails the build. A **note** is a place to review and does not.
 
 > [!NOTE]
-> Security rules match source text, one statement at a time. Confirm a finding before changing code: SQL assembled
+> Security rules match source text line by line (a multi-line template string is read as one piece). They find
+> candidates, not proofs, and they do not follow data across functions. Confirm a finding before changing code: SQL assembled
 > from fixed fragments with bound parameters is reported the same way as an injectable statement. A finding never
 > quotes the line, so a report does not spread the secret it found.
 
@@ -413,7 +418,7 @@ Each language's tests need its toolchain and are skipped without it. The suite's
 incremental scan equals a full scan after every edit, for every language.
 
 **Dependency policy.** Only versions with no known vulnerabilities. Two direct Go dependencies (`modernc.org/sqlite` and
-the official MCP Go SDK; 18 modules in the build with what they pull in, all MIT or BSD licensed) and one bundled compiler (TypeScript 5.9.3, Apache-2.0, unmodified; provenance in
+the official MCP Go SDK; 18 modules in the build with what they pull in, under MIT and BSD-style licences; SQLite itself is public domain) and one bundled compiler (TypeScript 5.9.3, Apache-2.0, unmodified; provenance in
 [cmd/rintel/adapter/README.md](cmd/rintel/adapter/README.md)). The Java and Python adapters and the report use no
 libraries at all. Places where a simpler approach was chosen on purpose carry a `shortcut:` comment that says when
 to replace it.

@@ -29,6 +29,8 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
   ...
 ```
 
+**처음이라면** [가이드](docs/README.md)부터 보세요: [시작하기](docs/ko/getting-started.md), [변경 검토](docs/ko/code-review.md), [CI에서 쓰기](docs/ko/ci.md), [Claude Code에서 쓰기](docs/ko/claude-code.md). 변경 내역은 [변경 이력](CHANGELOG.md)에 있습니다.
+
 ## 목차
 
 - [왜 rintel인가](#왜-rintel인가)
@@ -48,7 +50,8 @@ OwnerRepository.findById(Integer)                    owner/OwnerRepository.java:
 ## 왜 rintel인가
 
 - **로컬에서만 돌고, 아무것도 실행하지 않습니다.** 소스는 PC 밖으로 나가지 않고, 저장소의 코드나 빌드 도구,
-  어노테이션 프로세서, `node_modules`의 코드를 실행하지 않습니다. 신뢰할 수 없는 코드에 돌려도 안전합니다.
+  어노테이션 프로세서, `node_modules`의 코드를 실행하지 않습니다. 심볼릭 링크는 따라가지 않습니다. 신뢰할 수 없는
+  코드에 돌릴 수 있도록 만들었고, 그 범위는 [SECURITY.md](SECURITY.md)에 정확히 적혀 있습니다.
   네트워크를 쓰는 기능은 `check --vulns` 하나뿐이고, 직접 켜야 동작합니다.
 - **모든 답에 근거가 붙습니다.** 코드에서 읽은 사실에는 표시가 없습니다. 추정에는 사용한 규칙 이름이 붙습니다.
   해석하지 못한 지점은 사유와 함께 *미해석*으로 기록하므로, "없음"과 "못 봄"을 구분할 수 있습니다.
@@ -152,7 +155,8 @@ rintel impact --base origin/main --format md   # PR 코멘트용
 **경고**는 빌드를 실패시킵니다. **참고**는 검토할 곳을 알려 줄 뿐 실패시키지 않습니다.
 
 > [!NOTE]
-> 보안 규칙은 소스 텍스트를 문장 단위로 대조합니다. 코드를 바꾸기 전에 실제 문제인지 확인하세요. 고정된 조각과
+> 보안 규칙은 소스 텍스트를 줄 단위로 대조합니다(여러 줄 템플릿 문자열은 하나로 읽습니다). 증명이 아니라 후보를
+> 찾고, 함수 사이의 데이터 흐름은 따라가지 않습니다. 코드를 바꾸기 전에 실제 문제인지 확인하세요. 고정된 조각과
 > 바인딩 파라미터로 조립한 SQL도 인젝션이 가능한 SQL과 똑같이 보고됩니다. 결과에는 해당 줄의 내용을 싣지 않으므로
 > 보고서가 비밀값을 퍼뜨리지 않습니다.
 
@@ -407,7 +411,7 @@ make vuln     # govulncheck. "No vulnerabilities found." 이어야 함
 각 언어의 테스트는 그 언어의 툴체인이 있어야 돌고, 없으면 건너뜁니다. 테스트의 핵심 보증은 "모든 언어에서, 어떤
 수정 뒤에도 증분 스캔 결과가 전체 스캔 결과와 같다"입니다.
 
-**의존성 정책.** 알려진 취약점이 없는 버전만 씁니다. 직접 의존하는 Go 모듈은 둘(`modernc.org/sqlite`, 공식 MCP Go SDK)이고, 이들이 끌어오는 것까지 빌드에 들어가는 모듈은 18개입니다(모두 MIT 또는 BSD 라이선스).
+**의존성 정책.** 알려진 취약점이 없는 버전만 씁니다. 직접 의존하는 Go 모듈은 둘(`modernc.org/sqlite`, 공식 MCP Go SDK)이고, 이들이 끌어오는 것까지 빌드에 들어가는 모듈은 18개입니다(MIT와 BSD 계열 라이선스이고, SQLite 자체는 퍼블릭 도메인입니다).
 컴파일러 하나(TypeScript 5.9.3, Apache-2.0, 수정 없음. 출처는
 [cmd/rintel/adapter/README.md](cmd/rintel/adapter/README.md))를 내장합니다. Java·Python 어댑터와 보고서는 외부
 라이브러리를 쓰지 않습니다. 의도적으로 단순하게 처리한 곳에는 교체 시점을 적은 `shortcut:` 주석이 있습니다.
