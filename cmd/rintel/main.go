@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"sort"
 	"strings"
 	"unicode"
@@ -91,8 +92,16 @@ exit codes: 0 ok, 1 symbol not found or check failed, 2 usage error, 3 analysis 
 종료 코드: 0 정상, 1 심볼 없음 또는 점검 실패, 2 사용법 오류, 3 분석 오류`)
 }
 
-// version is set at release time with -ldflags "-X main.version=v1.2.3".
+// version is set at release time with -ldflags "-X main.version=v1.2.3". Without that (`go install ...@v1.2.3`),
+// the version of the module the binary was built from is used.
 var version = "dev"
+
+func init() {
+	if bi, ok := debug.ReadBuildInfo(); ok && version == "dev" && bi.Main.Version != "" && bi.Main.Version != "(devel)" {
+		version = bi.Main.Version
+	}
+	version = strings.TrimPrefix(version, "v")
+}
 
 func rootGiven(fs *flag.FlagSet) (given bool) {
 	fs.Visit(func(f *flag.Flag) { given = given || f.Name == "C" })
